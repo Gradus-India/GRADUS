@@ -238,12 +238,18 @@ const isWithinJoinWindow = (event) => {
 
 const RegistrationCard = ({ event }) => {
   const { user } = useAuth(); // Get logged-in user
+
+  // Check if it is a Masterclass (either by flag or badge)
+  const isMasterclass = event?.is_masterclass || event?.badge === "Masterclass" || event?.eventType === "Masterclass";
+
   const [form, setForm] = useState({
     name: "",
     email: "",
     phone: "",
     state: "",
     qualification: "",
+    city: "",
+    college: "",
     consent: false,
   });
   const [status, setStatus] = useState({ submitting: false, success: false, error: null });
@@ -254,11 +260,14 @@ const RegistrationCard = ({ event }) => {
     if (user) {
       setForm((prev) => ({
         ...prev,
-        name: user.full_name || user.name || prev.name,
+        // Try multiple variations for name
+        name: user.full_name || user.name || user.user_metadata?.full_name || user.user_metadata?.name || prev.name,
         email: user.email || prev.email,
         phone: user.phone || user.whatsapp_number || prev.phone,
         state: user.state || prev.state,
         qualification: user.qualification || prev.qualification,
+        city: user.city || prev.city,
+        college: user.college || prev.college,
       }));
     }
   }, [user]);
@@ -277,8 +286,13 @@ const RegistrationCard = ({ event }) => {
   const joinUrl = event?.cta?.url?.trim();
   const liveWindow = isWithinJoinWindow(event);
 
-  const isFormComplete = () =>
-    form.name && form.email && form.phone && form.state && form.qualification && form.consent;
+  const isFormComplete = () => {
+    const common = form.name && form.email && form.phone && form.state && form.consent;
+    if (isMasterclass) {
+      return common && form.city && form.college;
+    }
+    return common && form.qualification;
+  };
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -293,7 +307,9 @@ const RegistrationCard = ({ event }) => {
       state: form.state,
       course: event?.title || "Event",
       message: `Interested in ${event?.title || "event"} event`,
-      qualification: form.qualification,
+      qualification: isMasterclass ? null : form.qualification,
+      city: isMasterclass ? form.city : null,
+      college: isMasterclass ? form.college : null,
       consent: form.consent,
       eventDetails: {
         id: event?.id || event?._id || null,
@@ -313,11 +329,13 @@ const RegistrationCard = ({ event }) => {
     // If logged in, we reset to USER data, otherwise empty
     if (user) {
       setForm({
-        name: user.full_name || user.name || "",
+        name: user.full_name || user.name || user.user_metadata?.full_name || "",
         email: user.email || "",
         phone: user.phone || user.whatsapp_number || "",
         state: user.state || "",
         qualification: user.qualification || "",
+        city: user.city || "",
+        college: user.college || "",
         consent: false
       });
     } else {
@@ -327,6 +345,8 @@ const RegistrationCard = ({ event }) => {
         phone: "",
         state: "",
         qualification: "",
+        city: "",
+        college: "",
         consent: false,
       });
     }
@@ -471,22 +491,51 @@ const RegistrationCard = ({ event }) => {
             ))}
           </select>
 
-          <label className='form-label text-sm fw-semibold mt-16'>Qualification *</label>
-          <select
-            className='form-select'
-            name='qualification'
-            value={form.qualification}
-            onChange={handleChange}
-            required
-            disabled={!!user?.qualification} // Disable if fetched
-          >
-            <option value=''>Select qualification</option>
-            {QUALIFICATION_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
+          {/* Conditional Fields: Masterclass uses City/College; Others use Qualification */}
+          {isMasterclass ? (
+            <>
+              <label className='form-label text-sm fw-semibold mt-16'>City *</label>
+              <input
+                className='form-control'
+                name='city'
+                value={form.city}
+                onChange={handleChange}
+                placeholder='Enter your city'
+                required
+                readOnly={!!user?.city}
+              />
+
+              <label className='form-label text-sm fw-semibold mt-16'>College / Organization *</label>
+              <input
+                className='form-control'
+                name='college'
+                value={form.college}
+                onChange={handleChange}
+                placeholder='Enter your college or company'
+                required
+                readOnly={!!user?.college}
+              />
+            </>
+          ) : (
+            <>
+              <label className='form-label text-sm fw-semibold mt-16'>Qualification *</label>
+              <select
+                className='form-select'
+                name='qualification'
+                value={form.qualification}
+                onChange={handleChange}
+                required
+                disabled={!!user?.qualification}
+              >
+                <option value=''>Select qualification</option>
+                {QUALIFICATION_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
           <div className='form-check event-register-card__consent mt-16'>
             <input
               className='form-check-input'
