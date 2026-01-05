@@ -228,7 +228,7 @@ const VideoTestimonials = () => {
       slidesPerView: "auto",
       spaceBetween: 24,
       navigation: navigationEnabled,
-      loop: count >= 5,
+      loop: true,
       centeredSlides: true,
       touchStartPreventDefault: false,
       watchOverflow: true,
@@ -242,8 +242,8 @@ const VideoTestimonials = () => {
       0: { slidesPerView: 1.2, spaceBetween: 16, centeredSlides: true },
       576: { slidesPerView: 1.8, spaceBetween: 16, centeredSlides: true },
       768: { slidesPerView: 2.2, spaceBetween: 18, centeredSlides: true },
-      992: { slidesPerView: 3.2, spaceBetween: 20, centeredSlides: true },
-      1200: { slidesPerView: 3.8, spaceBetween: 24, centeredSlides: true },
+      992: { slidesPerView: 3, spaceBetween: 20, centeredSlides: true },
+      1200: { slidesPerView: 4, spaceBetween: 24, centeredSlides: true },
     };
 
     return { ...base, breakpoints: bp };

@@ -15916,7 +15916,7 @@ ul.footer-menu {
 
 .video-reel-slide .video-testimonial-card {
   width: 100%;
-  max-width: 280px;
+  max-width: 300px;
 }
 
 /* Keep adjacent slides visible for the video carousel (override global slick visibility rules) */
