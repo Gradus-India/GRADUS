@@ -116,3 +116,43 @@ export const syncEventRegistrationsToSheet = ({
     token,
     data: { registrationIds },
   });
+
+export const syncLandingPageRegistrationsToSheet = ({
+  token,
+  registrationIds,
+} = {}) =>
+  apiClient(`/admin/landing-pages/registrations/sync-sheet`, {
+    method: "POST",
+    token,
+    data: { registrationIds },
+  });
+
+export const sendLandingPageRegistrationReminders = ({
+  token,
+  registrationIds,
+} = {}) =>
+  apiClient(`/admin/landing-pages/registrations/send-reminder`, {
+    method: "POST",
+    token,
+    data: { registrationIds },
+  });
+
+export const updateLandingPageRegistration = ({
+  token,
+  registrationId,
+  data,
+} = {}) =>
+  apiClient(`/admin/landing-pages/registrations/${registrationId}`, {
+    method: "PATCH",
+    token,
+    data,
+  });
+
+export const deleteLandingPageRegistration = ({
+  token,
+  registrationId,
+} = {}) =>
+  apiClient(`/admin/landing-pages/registrations/${registrationId}`, {
+    method: "DELETE",
+    token,
+  });

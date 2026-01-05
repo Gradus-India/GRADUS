@@ -104,12 +104,29 @@ serve(async (req) => {
         }
       }
 
+      // Capitalize name helper
+      const capitalizeName = (nameStr: string): string => {
+        if (!nameStr || typeof nameStr !== "string") return nameStr;
+        return nameStr
+          .trim()
+          .split(/\s+/)
+          .map(word => {
+            if (!word) return word;
+            // Handle special cases like "Mc", "O'", etc.
+            if (word.length > 1 && word[1] === "'" && word.length > 2) {
+              return word[0].toUpperCase() + word[1] + word[2].toUpperCase() + word.slice(3).toLowerCase();
+            }
+            return word[0].toUpperCase() + word.slice(1).toLowerCase();
+          })
+          .join(" ");
+      };
+
       // Insert registration data
       const { data, error: insertError } = await supabase
         .from("landing_page_registrations")
         .insert([
           {
-            name,
+            name: capitalizeName(name),
             email: email.toLowerCase().trim(),
             phone: normalizedPhone,
             state,
@@ -132,6 +149,48 @@ serve(async (req) => {
           headers: { ...cors, "Content-Type": "application/json" },
           status: 400,
         });
+      }
+
+      // Queue Google Sheets sync (non-blocking)
+      try {
+        // Fetch landing page details for better sheet naming
+        let landingPageTitle = program_name;
+        if (landing_page_id) {
+          const { data: landingPage } = await supabase
+            .from("landing_pages")
+            .select("title")
+            .eq("id", landing_page_id)
+            .single();
+          if (landingPage?.title) {
+            landingPageTitle = landingPage.title;
+          }
+        }
+
+        await supabase
+          .from("sheets_sync_queue")
+          .insert([
+            {
+              entity_type: "landing_page_registration",
+              entity_id: data.id,
+              payload: {
+                id: data.id,
+                name,
+                email: email.toLowerCase().trim(),
+                phone: normalizedPhone,
+                state,
+                qualification,
+                program_name,
+                landing_page_id,
+                landing_pages: { title: landingPageTitle }, // Include for sheet naming
+              },
+              status: "pending",
+              scheduled_at: new Date().toISOString(),
+            },
+          ]);
+        console.log(`[landing-page-registration] Queued sheets sync for registration ${data.id}`);
+      } catch (queueError) {
+        // Don't fail registration if queue fails - just log it
+        console.error("[landing-page-registration] Failed to queue sheets sync:", queueError);
       }
 
       // Determine Zoom Link and Banner Image based on Mentor Name

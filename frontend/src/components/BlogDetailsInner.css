@@ -127,10 +127,19 @@
 .blog-content p {
     margin: 0 0 1.5rem 0;
     text-align: left;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 
 .blog-content p:last-child {
     margin-bottom: 0;
+}
+
+/* Ensure text flow is maintained when links are present */
+.blog-content p,
+.blog-content li,
+.blog-content td {
+    line-height: inherit;
 }
 
 /* Strong and emphasis */
@@ -299,11 +308,47 @@
     font-weight: 500;
     transition: color 0.2s ease, border-bottom-color 0.2s ease;
     border-bottom: 1px solid transparent;
+    display: inline;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    white-space: normal;
 }
 
 .blog-content a:hover {
     color: #4f46e5;
     border-bottom-color: #4f46e5;
+}
+
+/* Ensure links inside paragraphs stay inline */
+.blog-content p a {
+    display: inline;
+    margin: 0;
+    padding: 0;
+}
+
+/* Prevent links from breaking line flow */
+.blog-content a:not([class*="button"]):not([class*="btn"]) {
+    display: inline;
+    vertical-align: baseline;
+}
+
+/* Ensure links don't cause line breaks when wrapped in spans or other inline elements */
+.blog-content p span a,
+.blog-content p a span,
+.blog-content span a {
+    display: inline;
+    white-space: normal;
+}
+
+/* Prevent any block-level behavior on links */
+.blog-content a[style*="display: block"],
+.blog-content a[style*="display:block"] {
+    display: inline !important;
+}
+
+/* Ensure paragraphs maintain inline flow with links (additional properties) */
+.blog-content p {
+    white-space: normal;
 }
 
 /* Horizontal rule */
