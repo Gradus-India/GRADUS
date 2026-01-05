@@ -17,7 +17,10 @@ function getCorsHeaders(req: Request) {
   };
 }
 
-const JWT_SECRET = Deno.env.get("JWT_SECRET") || "fallback_secret_change_me"; 
+const JWT_SECRET = Deno.env.get("JWT_SECRET");
+if (!JWT_SECRET) {
+  throw new Error("Missing JWT_SECRET environment variable");
+} 
 
 serve(async (req: Request) => {
   const cors = getCorsHeaders(req) as any;

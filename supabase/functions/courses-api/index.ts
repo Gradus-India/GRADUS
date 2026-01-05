@@ -72,7 +72,8 @@ serve(async (req: Request) => {
             userId = sbUser.id;
           } else {
             // Fallback to legacy JWT
-            const JWT_SECRET = Deno.env.get("JWT_SECRET") || "fallback_secret_change_me";
+            // JWT_SECRET is already global
+
             const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(JWT_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
             const payload = await verify(token, key);
             userId = payload.id as string;
@@ -379,7 +380,8 @@ serve(async (req: Request) => {
 
         try {
             const token = authHeader.replace("Bearer ", "");
-            const JWT_SECRET = Deno.env.get("JWT_SECRET") || "fallback_secret_change_me";
+            // JWT_SECRET is already global
+
             const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(JWT_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
             const payload = await verify(token, key);
             const userId = payload.id;
@@ -479,7 +481,8 @@ serve(async (req: Request) => {
 
         try {
             const token = authHeader.replace("Bearer ", "");
-            const JWT_SECRET = Deno.env.get("JWT_SECRET") || "fallback_secret_change_me";
+            // JWT_SECRET is already global
+
             const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(JWT_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
             const payload = await verify(token, key);
             const userId = payload.id;
@@ -574,7 +577,8 @@ serve(async (req: Request) => {
        if (authHeader) {
           try {
              const token = authHeader.replace("Bearer ", "");
-             const JWT_SECRET = Deno.env.get("JWT_SECRET") || "fallback_secret_change_me";
+             // JWT_SECRET is already global
+
              const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(JWT_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
              const payload = await verify(token, key);
              const userId = payload.id;

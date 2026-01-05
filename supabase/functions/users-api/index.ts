@@ -20,7 +20,10 @@ const getCorsHeaders = (req: Request) => {
   };
 };
 
-const JWT_SECRET = Deno.env.get("JWT_SECRET") || "fallback_secret_change_me";
+const JWT_SECRET = Deno.env.get("JWT_SECRET");
+if (!JWT_SECRET) {
+    throw new Error("Missing JWT_SECRET environment variable");
+}
 
 serve(async (req: Request) => {
   const cors = getCorsHeaders(req) as any;
@@ -47,52 +50,8 @@ serve(async (req: Request) => {
       // Bucket likely exists or storage extension not fully set up
     }
 
-    // POST /wipe-all-data - ADMIN UTILITY TO WIPE EVERYTHING
-    // Placed before JWT verification to allow system admin execution
-    if (path.endsWith("/wipe-all-data") && req.method === "POST") {
-      console.log("Wiping all data...");
-      
-      const errors = [];
-
-      // 1. Delete all rows from public tables (Order matters for FK)
-      // Delete dependent tables first
-      const tablesToDelete = [
-        "user_auth_logs",
-        "ticket_messages",
-        "notifications",
-        "course_progresses",
-        "enrollments",
-        "tickets",
-        "verification_sessions",
-        "users"
-      ];
-
-      for (const table of tablesToDelete) {
-        const { error } = await supabase.from(table).delete().neq("id", "00000000-0000-0000-0000-000000000000");
-        if (error) {
-          console.error(`Failed to wipe ${table}:`, error);
-          errors.push(`${table}: ${error.message}`);
-        }
-      }
-
-      // 2. Delete all Auth Users
-      const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
-      if (listError) throw listError;
-
-      const deletePromises = users.map((u) => supabase.auth.admin.deleteUser(u.id));
-      await Promise.all(deletePromises);
-
-      if (errors.length > 0) {
-        return new Response(JSON.stringify({ message: `Partial wipe. Auth users deleted: ${users.length}. Database errors: ${errors.join(", ")}` }), { 
-          status: 500,
-          headers: { ...cors, "Content-Type": "application/json" } 
-        });
-      }
-
-      return new Response(JSON.stringify({ message: `Successfully wiped ${users.length} auth users and cleaned public tables.` }), { 
-        headers: { ...cors, "Content-Type": "application/json" } 
-      });
-    }
+    // POST /wipe-all-data - ENDPOINT REMOVED FOR SECURITY
+    // if (path.endsWith("/wipe-all-data") && req.method === "POST") { ... }
 
     // Helper to map DB user to Frontend expected format
     const mapUserToFrontend = (user: any) => {

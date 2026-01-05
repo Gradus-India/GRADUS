@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import Slider from "react-slick";
 import ModalVideo from "react-modal-video";
+import "react-modal-video/css/modal-video.css";
 import { Link } from "react-router-dom";
 import AOS from "aos";
 const BannerThree = () => {

@@ -37,7 +37,12 @@ serve(async (req) => {
       const { name, email, phone, state, qualification, program_name, landing_page_id, mentor_name, date, time, key_benefit } = await req.json();
 
       // Validate phone number: must be exactly 10 digits (after removing +91 prefix if present)
-      const phoneDigits = phone.replace(/\D/g, "").replace(/^91/, ""); // Remove country code if present
+      let phoneDigits = phone.replace(/\D/g, "");
+      // Only remove 91 if it's likely a country code (length > 10 and starts with 91)
+      if (phoneDigits.length > 10 && phoneDigits.startsWith("91")) {
+          phoneDigits = phoneDigits.substring(2);
+      }
+
       if (phoneDigits.length !== 10) {
         let errorMessage = "Please enter a valid 10-digit phone number.";
         if (phoneDigits.length > 0 && phoneDigits.length < 10) {
@@ -50,14 +55,17 @@ serve(async (req) => {
       }
 
       // Normalize phone number for comparison (store with +91 prefix)
-      const normalizedPhone = phone.startsWith("+") ? phone : `+91${phoneDigits}`;
+      const normalizedPhone = `+91${phoneDigits}`;
 
       // Check for duplicate registration: same email OR same phone for the same landing_page_id
-      // Fetch all registrations for this landing page to check both email and phone
+      // Optimize: Fetch only matching registrations instead of all
+      // Handle special characters in normalizedPhone for .or() query if necessary, typically supabase-js handles it or we can escape
+      // Using .or with specific matches
       const { data: existingRegistrations, error: checkError } = await supabase
         .from("landing_page_registrations")
         .select("id, email, phone")
-        .eq("landing_page_id", landing_page_id);
+        .eq("landing_page_id", landing_page_id)
+        .or(`email.eq.${email.toLowerCase().trim()},phone.eq.${normalizedPhone}`);
 
       if (checkError) {
         console.error("Error checking existing registrations:", checkError);
@@ -66,14 +74,6 @@ serve(async (req) => {
           status: 500,
         });
       }
-
-      // Normalize function for phone comparison
-      const normalizePhoneForComparison = (phoneStr: string): string => {
-        if (!phoneStr) return "";
-        // Extract only digits and remove country code if present
-        const digits = phoneStr.replace(/\D/g, "").replace(/^91/, "");
-        return digits.length === 10 ? `+91${digits}` : phoneStr;
-      };
 
       // Check if email or phone already exists for this masterclass
       if (existingRegistrations && existingRegistrations.length > 0) {
@@ -88,9 +88,14 @@ serve(async (req) => {
             });
           }
           
-          // Check phone match (normalize both for comparison)
-          const existingPhoneNormalized = normalizePhoneForComparison(existing.phone || "");
-          if (existingPhoneNormalized === normalizedPhone) {
+          // Check phone match
+          // We can compare directly since we queried for it, but let's be safe with normalization just in case DB has old format
+          let existingPhoneFn = existing.phone || "";
+          let existingDigits = existingPhoneFn.replace(/\D/g, "");
+          if (existingDigits.length > 10 && existingDigits.startsWith("91")) existingDigits = existingDigits.substring(2);
+          const existingPhoneParam = `+91${existingDigits}`;
+
+          if (existingPhoneParam === normalizedPhone) {
             return new Response(JSON.stringify({ error: "You're already registered! This phone number has already been used to register for this masterclass. Check your email for the confirmation." }), {
               headers: { ...cors, "Content-Type": "application/json" },
               status: 400,

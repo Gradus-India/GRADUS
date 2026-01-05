@@ -9,10 +9,10 @@ import App from "./App.jsx";
 import { AuthProvider } from "./context/AuthContext.jsx";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import "animate.css";
-import "react-modal-video/css/modal-video.css";
-import "lightgallery/css/lightgallery.css";
-import "lightgallery/css/lg-zoom.css";
-import "lightgallery/css/lg-thumbnail.css";
+// import "react-modal-video/css/modal-video.css"; // Moved to specific components
+// import "lightgallery/css/lightgallery.css"; // Moved to GallerySection.jsx
+// import "lightgallery/css/lg-zoom.css";
+// import "lightgallery/css/lg-thumbnail.css";
 
 // Fonts
 import "@fontsource/plus-jakarta-sans";
@@ -28,9 +28,9 @@ import "@fontsource/inter/700.css";
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
 import "animate.css/animate.css";
-import "swiper/css";
-import "swiper/css";
-import "swiper/css/navigation";
+// import "swiper/css"; // Moved to specific components
+// import "swiper/css"; 
+// import "swiper/css/navigation";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 

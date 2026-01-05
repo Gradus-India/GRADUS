@@ -1,5 +1,6 @@
 ﻿import { useState } from "react";
 import ModalVideo from "react-modal-video";
+import "react-modal-video/css/modal-video.css";
 import { Link } from "react-router-dom";
 import MiniPartnerLogos from "./MiniPartnerLogos";
 
