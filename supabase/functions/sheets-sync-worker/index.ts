@@ -85,6 +85,8 @@ serve(async (req: Request) => {
           success = await processEventRegistration(job.payload);
         } else if (job.entity_type === "contact_inquiry") {
           success = await processContactInquiry(job.payload);
+        } else if (job.entity_type === "landing_page_registration") {
+          success = await processLandingPageRegistration(job.payload);
         } else {
           console.warn(`[sheets-worker] Unknown entity type: ${job.entity_type}`);
         }
@@ -245,6 +247,54 @@ async function processContactInquiry(payload: any) {
   }
 }
 
+/**
+ * Process landing page registration sync
+ */
+async function processLandingPageRegistration(payload: any) {
+  console.log("[sheets-worker] Processing landing page registration", payload);
+  
+  const clients = getGoogleClients();
+  if (!clients) {
+    console.error("[sheets-worker] Google clients not initialized. Check environment variables.");
+    return false;
+  }
+
+  // Use program_name or landing page title as sheet name
+  const programName = payload.program_name || payload.landing_pages?.title || "Landing Page Registrations";
+  const sheetName = programName.replace(/[\\/]+/g, " - ").trim();
+  
+  try {
+    // Find or create spreadsheet for this program/landing page
+    const { spreadsheetId, tabName } = await ensureSheetForLandingPage(sheetName, clients);
+    
+    const row = [
+      payload.name || "",
+      payload.email || "",
+      payload.phone || "",
+      payload.qualification || "",
+      payload.state || "",
+      payload.program_name || "",
+      payload.landing_pages?.title || "",
+      new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })
+    ];
+
+    await clients.sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: `${tabName}!A:H`,
+      valueInputOption: "RAW",
+      insertDataOption: "INSERT_ROWS",
+      requestBody: {
+        values: [row],
+      },
+    });
+
+    return true;
+  } catch (error) {
+    console.error(`[sheets-worker] Landing page registration sync failed for ${sheetName}:`, error);
+    return false;
+  }
+}
+
 // ============================================================================
 // Google Sheets Internal Helpers (Simplified Port)
 // ============================================================================
@@ -331,4 +381,58 @@ async function ensureSheetByName(name: string, clients: any) {
   }
 
   return { spreadsheetId };
+}
+
+async function ensureSheetForLandingPage(programName: string, clients: any) {
+  const desiredName = programName || "Landing Page Registrations";
+  
+  // Search for existing spreadsheet
+  const res = await clients.drive.files.list({
+    q: `name='${desiredName}' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`,
+    fields: "files(id, name)",
+    pageSize: 1
+  });
+
+  let spreadsheetId = res.data.files?.[0]?.id;
+  const tabName = "Registrations";
+
+  if (!spreadsheetId) {
+    // Create new spreadsheet
+    const created = await clients.sheets.spreadsheets.create({
+      requestBody: {
+        properties: { title: desiredName },
+        sheets: [{ properties: { title: tabName, gridProperties: { frozenRowCount: 1 } } }]
+      }
+    });
+    spreadsheetId = created.data.spreadsheetId;
+    
+    // Set headers
+    await clients.sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `${tabName}!A1`,
+      valueInputOption: "RAW",
+      requestBody: {
+        values: [["Name", "Email", "Phone", "Qualification", "State", "Program Name", "Source Page", "Registration Date"]],
+      },
+    });
+  } else {
+    // Check if headers exist, if not add them
+    const headerCheck = await clients.sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: `${tabName}!A1:H1`,
+    });
+    
+    if (!headerCheck.data.values || headerCheck.data.values.length === 0) {
+      await clients.sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: `${tabName}!A1`,
+        valueInputOption: "RAW",
+        requestBody: {
+          values: [["Name", "Email", "Phone", "Qualification", "State", "Program Name", "Source Page", "Registration Date"]],
+        },
+      });
+    }
+  }
+
+  return { spreadsheetId, tabName };
 }
