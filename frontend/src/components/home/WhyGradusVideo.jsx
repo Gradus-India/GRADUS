@@ -7,6 +7,7 @@ const WhyGradusVideo = () => {
   const [loading, setLoading] = useState(true);
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [videoAspect, setVideoAspect] = useState(null);
+  const [hasPlayed, setHasPlayed] = useState(false); // Track if user has started playing
   const [error, setError] = useState(null);
   const videoRef = useRef(null);
   const { ref: viewRef, inView } = useInView({ threshold: 0.35 });
@@ -35,24 +36,25 @@ const WhyGradusVideo = () => {
     };
   }, []);
 
-  useEffect(() => {
-    const el = videoRef.current;
-    if (!el || loading || !videoSrc) return;
-    const playSafe = async () => {
-      try {
-        el.muted = true;
-        el.currentTime = 0;
-        if (inView) {
-          await el.play();
-        } else {
-          el.pause();
-        }
-      } catch {
-        // ignore autoplay block
-      }
-    };
-    playSafe();
-  }, [videoSrc, loading, inView]);
+  // Autoplay logic removed per request
+  // useEffect(() => {
+  //   const el = videoRef.current;
+  //   if (!el || loading || !videoSrc) return;
+  //   const playSafe = async () => {
+  //     try {
+  //       el.muted = true;
+  //       el.currentTime = 0;
+  //       if (inView) {
+  //         await el.play();
+  //       } else {
+  //         el.pause();
+  //       }
+  //     } catch {
+  //       // ignore autoplay block
+  //     }
+  //   };
+  //   playSafe();
+  // }, [videoSrc, loading, inView]);
 
   useEffect(() => {
     if (!videoSrc) {
@@ -75,7 +77,41 @@ const WhyGradusVideo = () => {
     if (videoWidth > 0 && videoHeight > 0) {
       setVideoAspect(videoWidth / videoHeight);
     }
+    // Set thumbnail to 0:46
+    if (!hasPlayed) {
+      el.currentTime = 46;
+    }
     setVideoLoaded(true);
+  };
+
+  const handlePlay = () => {
+    const el = videoRef.current;
+    if (!el) return;
+
+    if (!hasPlayed) {
+      // First time playing: reset to start
+      el.currentTime = 0;
+      setHasPlayed(true);
+      // We don't need to call play() again, the event itself comes from a play attempt
+      // But adjusting currentTime might pause it depending on browser, so let's ensure it plays
+      // However, changing currentTime inside onPlay might be tricky.
+      // Better approach: do this in `onClick` or intercept the play intent?
+      // Actually, standard behavior for <video> controls:
+      // if we change currentTime during play, it just jumps.
+    }
+  };
+
+  // Revised approach for handlePlay to avoid conflict:
+  // Use onPlay to detect start, but since we are using native controls, 
+  // we can just rely on the fact that if it hasn't played, we jump to 0.
+  // Note: changing currentTime triggers 'seeked' event.
+
+  const onPlayHandler = (e) => {
+    const el = e.target;
+    if (!hasPlayed) {
+      el.currentTime = 0;
+      setHasPlayed(true);
+    }
   };
 
   const handleVideoError = () => {
@@ -83,7 +119,7 @@ const WhyGradusVideo = () => {
     setVideoLoaded(false);
   };
 
-  const poster = item?.thumbnailUrl;
+  const poster = undefined; // No static poster, using 0:46 frame as thumbnail
   const title = item?.title;
   const subtitle = item?.subtitle;
   const description = item?.description;
@@ -166,10 +202,11 @@ const WhyGradusVideo = () => {
                     poster={poster || undefined}
                     controls
                     playsInline
-                    muted
+                    muted={false} // Unmuted so user hears sound when they manually play
                     preload="metadata"
                     onEnded={handleEnded}
                     onLoadedMetadata={handleMetadata}
+                    onPlay={onPlayHandler}
                     onLoadedData={() => setVideoLoaded(true)}
                     onError={handleVideoError}
                     style={{

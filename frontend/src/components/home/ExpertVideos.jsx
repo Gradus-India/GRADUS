@@ -100,20 +100,21 @@ const ExpertVideos = () => {
     const playSafe = async () => {
       try {
         if (!el.muted) {
-          el.muted = true; // ensure autoplay allowed; user can unmute manually
+          // el.muted = true; // ensure autoplay allowed; user can unmute manually
         }
-        el.currentTime = 0;
-        if (inView) {
-          await el.play();
-        } else {
-          el.pause();
-        }
+        el.currentTime = 0; // Force 0:00 as thumbnail
+        // Autoplay removed per request
+        // if (inView) {
+        //   await el.play();
+        // } else {
+        //   el.pause();
+        // }
       } catch (err) {
         // autoplay might be blocked; ignore
       }
     };
     playSafe();
-  }, [index, currentVideo?.playbackUrl, inView]);
+  }, [index, currentVideo?.playbackUrl]); // Removed inView dependency since we don't autoplay anymore
 
   const showSkeletonCard = loading && !currentVideo;
   const videoSkeletonStyle = {
@@ -176,8 +177,7 @@ const ExpertVideos = () => {
                     poster={currentVideo.thumbnailUrl || undefined}
                     controls
                     playsInline
-                    autoPlay
-                    muted
+                    muted={false} // Unmuted so user hears sound when they manually play
                     className={`expert-video-player animate-${direction}`}
                     ref={videoRef}
                     style={{ position: "relative", zIndex: 2 }}
