@@ -37,7 +37,7 @@ const shimmerKeyframes = `
 `;
 
 const VideoTestimonials = () => {
-  const [items, setItems] = useState(FALLBACK_TESTIMONIALS);
+  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeId, setActiveId] = useState(null);
@@ -138,11 +138,11 @@ const VideoTestimonials = () => {
         const data = await listTestimonials();
         if (!mounted) return;
         const normalized = normalizeItems(data);
-        setItems(normalized.length ? normalized : FALLBACK_TESTIMONIALS);
+        setItems(normalized);
         setError(null);
       } catch (err) {
         if (!mounted) return;
-        setItems(FALLBACK_TESTIMONIALS);
+        setItems([]);
         setError(err?.message || "Unable to load testimonials.");
       } finally {
         if (mounted) setLoading(false);
@@ -221,7 +221,7 @@ const VideoTestimonials = () => {
   const showSkeleton = loading && !items.length;
 
   const sliderSettings = useMemo(() => {
-    const count = Math.max(1, items.length || FALLBACK_TESTIMONIALS.length);
+    const count = Math.max(1, items.length);
     const navigationEnabled = count > 1;
     const base = {
       modules: [Navigation, A11y],

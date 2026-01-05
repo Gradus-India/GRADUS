@@ -8,6 +8,7 @@ import {
   updateAdminBanner,
   deleteAdminBanner,
 } from '../services/adminBanners';
+import { convertToWebP } from '../utils/imageUtils';
 
 const initialFormState = {
   title: '',
@@ -207,14 +208,25 @@ const BannersPage = () => {
     }
   };
 
-  const handleFileSelection = (file, variant) => {
-    setForm((s) => ({ ...s, [`${variant}File`]: file }));
+  const handleFileSelection = async (file, variant) => {
+    if (!file) return;
+
+    let processedFile = file;
+    if (file.type.startsWith('image/')) {
+      try {
+        processedFile = await convertToWebP(file);
+      } catch (e) {
+        console.error('WebP conversion failed, using original:', e);
+      }
+    }
+
+    setForm((s) => ({ ...s, [`${variant}File`]: processedFile }));
     setPreviewUrl((current) => {
       const next = { ...current };
       if (current?.[variant]) {
         URL.revokeObjectURL(current[variant]);
       }
-      next[variant] = file ? URL.createObjectURL(file) : '';
+      next[variant] = processedFile ? URL.createObjectURL(processedFile) : '';
       return next;
     });
   };

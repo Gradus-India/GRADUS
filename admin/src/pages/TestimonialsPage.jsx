@@ -8,6 +8,7 @@ import {
   deleteAdminTestimonial,
   updateAdminTestimonial,
 } from '../services/adminTestimonials';
+import { convertToWebP } from '../utils/imageUtils';
 
 const TestimonialsPage = () => {
   const { token } = useAuthContext();
@@ -18,6 +19,7 @@ const TestimonialsPage = () => {
   const [form, setForm] = useState({ name: '', role: '', active: true, order: 0, file: null, thumbnailFile: null });
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', role: '', order: 0, thumbnailFile: null });
+  const [dragging, setDragging] = useState({ video: false, thumbnail: false });
 
   const load = async () => {
     try {
@@ -103,6 +105,47 @@ const TestimonialsPage = () => {
     }
   };
 
+  const handleFileSelection = async (file, variant) => {
+    if (!file) return;
+
+    let processedFile = file;
+    if (variant === 'thumbnail' && file.type.startsWith('image/')) {
+      try {
+        processedFile = await convertToWebP(file);
+      } catch (e) {
+        console.error('WebP conversion failed, using original:', e);
+      }
+    }
+
+    if (editingId) {
+      if (variant === 'thumbnail') {
+        setEditForm((s) => ({ ...s, thumbnailFile: processedFile }));
+      }
+    } else {
+      setForm((s) => ({ ...s, [variant === 'video' ? 'file' : 'thumbnailFile']: processedFile }));
+    }
+  };
+
+  const onDragOver = (event, variant) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setDragging((prev) => (prev[variant] ? prev : { ...prev, [variant]: true }));
+  };
+
+  const onDragLeave = (event, variant) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setDragging((prev) => ({ ...prev, [variant]: false }));
+  };
+
+  const onDropFile = (event, variant) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setDragging((prev) => ({ ...prev, [variant]: false }));
+    const file = event.dataTransfer?.files?.[0];
+    if (file) handleFileSelection(file, variant);
+  };
+
   return (
     <MasterLayout>
       <Breadcrumb title='Testimonials (Supabase Storage)' />
@@ -137,17 +180,68 @@ const TestimonialsPage = () => {
                   </div>
                   <div className='col-12'>
                     <label className='form-label'>Video File (mp4/webm/mov)</label>
-                    <input type='file' accept='video/*' className='form-control' onChange={(e) => setForm((s) => ({ ...s, file: e.target.files?.[0] || null }))} />
+                    <div
+                      className='border rounded-3 p-20 text-center'
+                      style={{
+                        cursor: 'pointer',
+                        borderStyle: 'dashed',
+                        borderWidth: 2,
+                        borderColor: dragging.video ? 'var(--bs-primary, #0d6efd)' : 'rgba(15,23,42,0.2)',
+                        backgroundColor: dragging.video ? 'rgba(13,110,253,0.08)' : '#fff',
+                        transition: '0.2s',
+                        borderRadius: 12,
+                      }}
+                      onDragOver={(e) => onDragOver(e, 'video')}
+                      onDragLeave={(e) => onDragLeave(e, 'video')}
+                      onDrop={(e) => onDropFile(e, 'video')}
+                      onClick={() => document.getElementById('videoInput').click()}
+                    >
+                      {form.file ? (
+                        <div className='text-sm fw-medium text-neutral-900'>Selected: {form.file.name}</div>
+                      ) : (
+                        <div className='text-sm text-neutral-500'>Drag & drop video or click to browse</div>
+                      )}
+                    </div>
+                    <input
+                      id='videoInput'
+                      type='file'
+                      accept='video/*'
+                      className='d-none'
+                      onChange={(e) => handleFileSelection(e.target.files?.[0], 'video')}
+                    />
                   </div>
                   <div className='col-12'>
-                    <label className='form-label'>Thumbnail (optional)</label>
+                    <label className='form-label'>Thumbnail (converted to WebP)</label>
+                    <div
+                      className='border rounded-3 p-20 text-center'
+                      style={{
+                        cursor: 'pointer',
+                        borderStyle: 'dashed',
+                        borderWidth: 2,
+                        borderColor: dragging.thumbnail ? 'var(--bs-primary, #0d6efd)' : 'rgba(15,23,42,0.2)',
+                        backgroundColor: dragging.thumbnail ? 'rgba(13,110,253,0.08)' : '#fff',
+                        transition: '0.2s',
+                        borderRadius: 12,
+                      }}
+                      onDragOver={(e) => onDragOver(e, 'thumbnail')}
+                      onDragLeave={(e) => onDragLeave(e, 'thumbnail')}
+                      onDrop={(e) => onDropFile(e, 'thumbnail')}
+                      onClick={() => document.getElementById('thumbInput').click()}
+                    >
+                      {form.thumbnailFile ? (
+                        <div className='text-sm fw-medium text-neutral-900'>Selected: {form.thumbnailFile.name}</div>
+                      ) : (
+                        <div className='text-sm text-neutral-500'>Drag & drop image or click to browse</div>
+                      )}
+                    </div>
                     <input
+                      id='thumbInput'
                       type='file'
                       accept='image/*'
-                      className='form-control'
-                      onChange={(e) => setForm((s) => ({ ...s, thumbnailFile: e.target.files?.[0] || null }))}
+                      className='d-none'
+                      onChange={(e) => handleFileSelection(e.target.files?.[0], 'thumbnail')}
                     />
-                    <small className='text-muted'>Uploads a custom poster instead of the auto-generated frame.</small>
+                    <small className='text-muted d-block mt-2'>Uploads a custom poster instead of the auto-generated frame.</small>
                   </div>
                 </div>
                 <div className='mt-16 d-flex gap-2'>
