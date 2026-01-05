@@ -63,13 +63,22 @@ async function verifyAdminToken(req: Request, supabase: SupabaseClient): Promise
 
 async function verifyUser(req: Request, supabase: SupabaseClient): Promise<{ user: any; error?: string }> {
   const authHeader = req.headers.get("Authorization");
-  if (!authHeader) return { user: null, error: "No authorization header" };
+  if (!authHeader) {
+      console.log("[verifyUser] No Authorization header found");
+      return { user: null, error: "No authorization header" };
+  }
   
-  const token = authHeader.replace("Bearer ", "");
+  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+  console.log("[verifyUser] Token extracted (prefix):", token.substring(0, 10));
   
   // 1. Supabase Auth
   const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (user) return { user };
+  if (user) {
+      console.log("[verifyUser] Supabase Auth Success:", user.id);
+      return { user };
+  }
+  
+  if (error) console.log("[verifyUser] Supabase Auth Error:", error.message);
   
   // 2. Custom JWT (Legacy)
   try {
@@ -82,8 +91,11 @@ async function verifyUser(req: Request, supabase: SupabaseClient): Promise<{ use
           ["verify"]
       );
       const payload = await verify(token, key);
-      return { user: { id: (payload as any).id || (payload as any).sub } };
+      const legacyId = (payload as any).id || (payload as any).sub;
+      console.log("[verifyUser] Custom JWT Success:", legacyId);
+      return { user: { id: legacyId } };
   } catch (e) {
+      console.log("[verifyUser] Custom JWT Error:", (e as any).message);
       return { user: null, error: "Invalid token" };
   }
 }
@@ -136,8 +148,9 @@ Deno.serve(async (req) => {
         const body = await req.json().catch(() => ({}));
         
         // Attempt auth but do not enforce it
-        const { user } = await verifyUser(req, supabase);
-        const userId = user?.id || null;
+        const { user: identifiedUser } = await verifyUser(req, supabase);
+        const userId = identifiedUser?.id || null;
+        console.log("[RegistrationAPI] Identified userId:", userId);
 
         const eventIdFromPayload = body.eventId || body.eventDetails?.id;
         const eventSlugFromPayload = body.eventSlug || body.eventDetails?.slug;

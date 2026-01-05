@@ -43,6 +43,7 @@ export const submitEventRegistration = async ({
   message,
   eventDetails,
   consent,
+  token,
 }) => {
   const payload = {
     name,
@@ -58,7 +59,7 @@ export const submitEventRegistration = async ({
     consent,
   };
 
-  return apiClient.post("/event-registrations", payload);
+  return apiClient.post("/event-registrations", payload, { token });
 };
 
 export default {

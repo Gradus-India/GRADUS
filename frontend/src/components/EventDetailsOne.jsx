@@ -237,7 +237,7 @@ const isWithinJoinWindow = (event) => {
 };
 
 const RegistrationCard = ({ event }) => {
-  const { user } = useAuth(); // Get logged-in user
+  const { user, token } = useAuth(); // Get logged-in user and token
 
   // Check if it is a Masterclass (either by flag or badge)
   const isMasterclass = event?.is_masterclass || event?.badge === "Masterclass" || event?.eventType === "Masterclass";
@@ -300,6 +300,7 @@ const RegistrationCard = ({ event }) => {
   };
 
   const submitRegistration = async () => {
+    console.log("[EventDetails] Starting registration. Token exists:", !!token);
     await submitEventRegistration({
       name: form.name,
       email: form.email,
@@ -311,6 +312,7 @@ const RegistrationCard = ({ event }) => {
       city: isMasterclass ? form.city : null,
       college: isMasterclass ? form.college : null,
       consent: form.consent,
+      token: token,
       eventDetails: {
         id: event?.id || event?._id || null,
         slug: event?.slug || "",
@@ -323,6 +325,7 @@ const RegistrationCard = ({ event }) => {
         ctaUrl: event?.cta?.url || "",
       },
     });
+    console.log("[EventDetails] Registration submit call finished.");
   };
 
   const resetForm = () => {
