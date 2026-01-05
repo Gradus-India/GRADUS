@@ -86,7 +86,6 @@ Deno.serve(async (req) => {
       const { data, error } = await supabase
         .from("testimonials")
         .select("*")
-        .eq("is_active", true) // Filter active only
         .order("sort_order", { ascending: true });
 
       if (error) throw error;

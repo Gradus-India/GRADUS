@@ -3,8 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { verify } from "https://deno.land/x/djwt@v2.8/mod.ts";
 
-const JWT_SECRET = Deno.env.get("JWT_SECRET");
-if (!JWT_SECRET) throw new Error("Missing JWT_SECRET");
+
 
 
 
