@@ -95,10 +95,6 @@ const OverviewTab = ({ event, overviewText }) => {
 
   return (
     <div className='event-overview'>
-      <div className='event-meta-pill mb-16'>
-        <span className='event-meta-pill__label'>Event Type</span>
-        <span className='event-meta-pill__value'>{eventTypeLabel}</span>
-      </div>
 
       {paragraphs.map((text, index) => (
         <p key={index} className='text-neutral-600 mb-24'>
