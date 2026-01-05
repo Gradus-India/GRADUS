@@ -43,50 +43,52 @@ const JoinLiveClass = () => {
                     return;
                 }
 
-                // A. Fetch Room Details (to get Course Name)
-                const roomRes = await fetch(`${LIVE_CLASS_API_URL}/rooms`, {
-                    headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
+                // A. Fetch Room Details and verify enrollment via API
+                // Use active-classes endpoint which already filters by enrollment
+                const activeClassesRes = await fetch(`${LIVE_CLASS_API_URL}/active-classes`, {
+                    headers: { Authorization: `Bearer ${token}` }
                 });
-                const roomData = await roomRes.json();
+                
+                if (!activeClassesRes.ok) {
+                    if (activeClassesRes.status === 401) {
+                        setError('Please sign in to join live classes.');
+                        setCheckingAccess(false);
+                        return;
+                    }
+                    throw new Error('Failed to verify access');
+                }
 
-                const currentRoom = roomData.rooms?.find(r => r.id === roomId);
-
-                if (!currentRoom) {
-                    setError('Class session not found or has ended.');
+                const activeClassesData = await activeClassesRes.json();
+                
+                if (!activeClassesData.success) {
+                    setError(activeClassesData.error || 'Failed to verify enrollment.');
                     setCheckingAccess(false);
                     return;
                 }
-                setRoomDetails(currentRoom);
 
-                // B. Fetch Enrollments
-                const enrollments = await fetchMyEnrollments({ token });
-                const items = Array.isArray(enrollments) ? enrollments : (enrollments.items || []);
+                // B. Find the room in active classes (already filtered by enrollment)
+                const activeClass = activeClassesData.classes?.find((cls) => cls.roomId === roomId);
 
-                // C. Match Room Description/Name to Enrolled Course Name
-                const description = (currentRoom.description || "").toLowerCase();
-                const name = (currentRoom.name || "").toLowerCase();
+                if (!activeClass) {
+                    setError('You are not enrolled in this course or the class session has ended.');
+                    setCheckingAccess(false);
+                    return;
+                }
 
-                const isEnrolled = items.some(enrollment => {
-                    const courseName = (enrollment.course?.name || enrollment.course?.title || "").toLowerCase();
-                    if (!courseName) return false;
-
-                    // Simple loose matching: Remove special chars to enable matches like "UI/UX" == "uiux"
-                    const cleanName = courseName.replace(/[^a-z0-9]/g, '');
-                    const cleanDesc = description.replace(/[^a-z0-9]/g, '');
-                    const cleanRoomName = name.replace(/[^a-z0-9]/g, '');
-
-                    return cleanDesc.includes(cleanName) || cleanRoomName.includes(cleanName);
+                setRoomDetails({
+                    id: activeClass.roomId,
+                    name: activeClass.roomName || activeClass.courseName,
+                    courseName: activeClass.courseName,
+                    courseSlug: activeClass.courseSlug,
                 });
 
-                if (isEnrolled) {
-                    setAccessGranted(true);
-                    // Pre-fill name from user profile
-                    if (user) {
-                        const displayName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.name || user.email?.split('@')[0];
-                        setUserName(displayName);
-                    }
-                } else {
-                    setError('You are not enrolled in the course for this live class.');
+                // Access granted - student is enrolled in this course
+                setAccessGranted(true);
+                
+                // Pre-fill name from user profile
+                if (user) {
+                    const displayName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.name || user.email?.split('@')[0];
+                    setUserName(displayName);
                 }
 
             } catch (err) {
@@ -117,10 +119,11 @@ const JoinLiveClass = () => {
 
         try {
             // Try to get Room Code first (preferred for 100ms Prebuilt)
+            // Use student token for enrollment verification
             try {
                 const codeRes = await fetch(`${LIVE_CLASS_API_URL}/get-room-codes/${roomId}`, {
                     method: 'GET',
-                    headers: { 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+                    headers: { 'Authorization': `Bearer ${token}` },
                 });
                 const codeData = await codeRes.json();
                 if (codeData.success && codeData.codes) {
@@ -137,12 +140,12 @@ const JoinLiveClass = () => {
                 console.warn("Failed to fetch room codes, falling back to token:", err);
             }
 
-            // Fallback: Token Generation
+            // Fallback: Token Generation (with enrollment verification)
             const res = await fetch(`${LIVE_CLASS_API_URL}/get-token`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                    'Authorization': `Bearer ${token}`, // Use student token for enrollment verification
                 },
                 body: JSON.stringify({
                     roomId: roomId,

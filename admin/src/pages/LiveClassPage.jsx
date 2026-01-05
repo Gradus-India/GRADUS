@@ -6,8 +6,10 @@ import { SUPABASE_FUNCTIONS_URL, SUPABASE_ANON_KEY, HMS_SYSTEM_SUBDOMAIN } from 
 
 const LIVE_CLASS_API_URL = SUPABASE_FUNCTIONS_URL ? `${SUPABASE_FUNCTIONS_URL}/live-class-api` : null;
 
+const normalizeRole = (role) => (role ? String(role).toLowerCase() : "");
+
 const LiveClassPage = () => {
-    const { token } = useAuth();
+    const { token, admin } = useAuth();
     const [loading, setLoading] = useState(false);
     const [activeRoom, setActiveRoom] = useState(null);
     const [rooms, setRooms] = useState([]);
@@ -15,8 +17,8 @@ const LiveClassPage = () => {
     const [courses, setCourses] = useState([]);
     const [selectedCourse, setSelectedCourse] = useState('');
     const [loadingCourses, setLoadingCourses] = useState(true);
-    // Manual Role Selector State
-    const [manualRole, setManualRole] = useState('auto');
+    const [handRaises, setHandRaises] = useState([]);
+    const [attendance, setAttendance] = useState([]);
 
     // Check if 100ms is configured
     const isConfigured = !!LIVE_CLASS_API_URL;
@@ -28,6 +30,43 @@ const LiveClassPage = () => {
             fetchRooms();
         }
     }, [isConfigured]);
+
+    // Poll recording status and hand raises when room is active
+    useEffect(() => {
+        if (!activeRoom || !token) return;
+        
+        const interval = setInterval(async () => {
+            try {
+                // Get hand raises if we have session ID
+                if (activeRoom.sessionId) {
+                    const handRaisesRes = await fetch(`${LIVE_CLASS_API_URL}/hand-raises/${activeRoom.sessionId}`, {
+                        headers: { Authorization: `Bearer ${token}` },
+                    });
+                    if (handRaisesRes.ok) {
+                        const handRaisesData = await handRaisesRes.json();
+                        if (handRaisesData.success) {
+                            setHandRaises(handRaisesData.handRaises || []);
+                        }
+                    }
+                    
+                    // Get attendance
+                    const attendanceRes = await fetch(`${LIVE_CLASS_API_URL}/attendance/${activeRoom.sessionId}`, {
+                        headers: { Authorization: `Bearer ${token}` },
+                    });
+                    if (attendanceRes.ok) {
+                        const attendanceData = await attendanceRes.json();
+                        if (attendanceData.success) {
+                            setAttendance(attendanceData.attendance || []);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to fetch session data:', err);
+            }
+        }, 5000); // Poll every 5 seconds
+        
+        return () => clearInterval(interval);
+    }, [activeRoom, token, LIVE_CLASS_API_URL]);
 
     const fetchCourses = async () => {
         setLoadingCourses(true);
@@ -49,13 +88,16 @@ const LiveClassPage = () => {
     };
 
     const fetchRooms = async () => {
+        if (!token) return;
         try {
             const res = await fetch(`${LIVE_CLASS_API_URL}/rooms`, {
-                headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+                headers: { Authorization: `Bearer ${token}` },
             });
             const data = await res.json();
             if (data.success) {
                 setRooms(data.rooms || []);
+            } else if (data.error && data.error.includes('Access denied')) {
+                setError('You do not have permission to access live classes. Only teachers can access this feature.');
             }
         } catch (err) {
             console.error('Failed to fetch rooms:', err);
@@ -88,12 +130,12 @@ const LiveClassPage = () => {
             const timestamp = new Date().toISOString().replace(/[^a-zA-Z0-9.\-_]/g, '_');
             const roomName = `${safeName}_${timestamp}`.substring(0, 60);
 
-            // 1. Create 100ms Room
+            // 1. Create 100ms Room - Use admin token for authentication
             const createRes = await fetch(`${LIVE_CLASS_API_URL}/create-room`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                    Authorization: `Bearer ${token}`,
                 },
                 body: JSON.stringify({
                     name: roomName,
@@ -110,27 +152,23 @@ const LiveClassPage = () => {
                 throw new Error(createData.error || 'Failed to create room_');
             }
 
-            // 2. Determine Role
+            // 2. Determine Role - Force teacher role
             const codes = createData.room.codes || {};
             const availableRoles = Object.keys(codes);
             console.log("Available Roles in Template:", availableRoles);
 
-            let finalRole = 'teacher';
+            // Always use teacher role - find teacher role code or fallback to host/broadcaster
+            const teacherRole = availableRoles.find(r =>
+                ['teacher', 'instructor', 'host', 'broadcaster', 'presenter', 'moderator'].includes(r.toLowerCase())
+            ) || availableRoles[0] || 'teacher';
+            
+            console.log("Teacher Role Selected:", teacherRole);
 
-            if (manualRole !== 'auto') {
-                finalRole = manualRole;
-            } else {
-                finalRole = availableRoles.find(r =>
-                    ['broadcaster', 'teacher', 'instructor', 'host', 'presenter', 'moderator'].includes(r.toLowerCase())
-                ) || 'teacher';
-            }
-            console.log("Validation Role Selected:", finalRole);
-
-            // 3. Get Codes
-            const hostCode = codes[finalRole] || codes.host;
+            // 3. Get Codes - Use teacher role code
+            const hostCode = codes[teacherRole] || codes.host || codes.broadcaster || Object.values(codes)[0];
             const guestCode = codes.student || codes.guest || codes.viewer;
 
-            let token = null;
+            let hmsToken = null;
 
             // 4. Auth Strategy: Prefer Room Code
             // Only generate token if NO CODE is available. 
@@ -142,19 +180,19 @@ const LiveClassPage = () => {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                            Authorization: `Bearer ${token}`, // Use admin token from useAuth
                         },
                         body: JSON.stringify({
                             roomId: createData.room.id,
                             userId: `instructor-${Date.now()}`,
-                            role: finalRole,
+                            role: teacherRole,
                         }),
                     });
                     const tokenData = await tokenRes.json();
                     if (tokenData.success) {
-                        token = tokenData.token;
+                        hmsToken = tokenData.token;
                     } else {
-                        console.warn(`Token failed for role '${finalRole}'.`);
+                        console.warn(`Token failed for role '${teacherRole}'.`);
                     }
                 } catch (err) {
                     console.warn("Token API failed.", err);
@@ -164,17 +202,37 @@ const LiveClassPage = () => {
             }
 
             // Verify we have at least one way to join
-            if (!token && !hostCode) {
-                throw new Error(`Failed to join: Role '${finalRole}' has no Room Code and Token generation failed.`);
+            if (!hmsToken && !hostCode) {
+                throw new Error(`Failed to join: Role '${teacherRole}' has no Room Code and Token generation failed.`);
+            }
+
+            // Get session ID from database
+            let sessionId = null;
+            try {
+                const sessionRes = await fetch(`${LIVE_CLASS_API_URL}/rooms`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                const sessionData = await sessionRes.json();
+                if (sessionData.success) {
+                    // Find session by room ID
+                    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+                    if (supabaseUrl) {
+                        // Session ID will be set when we create the session in the API
+                        // For now, we'll use room ID as session identifier
+                    }
+                }
+            } catch (err) {
+                console.warn('Failed to get session ID:', err);
             }
 
             setActiveRoom({
                 ...createData.room,
-                token: token,
+                token: hmsToken,
                 hostCode: hostCode,
                 guestCode: guestCode,
-                instructorRole: finalRole,
+                instructorRole: teacherRole,
                 courseName: courseName,
+                sessionId: sessionId,
             });
 
         } catch (err) {
@@ -184,17 +242,46 @@ const LiveClassPage = () => {
         }
     };
 
-    const handleEndClass = async () => {
-        if (!activeRoom) return;
+
+    const handleAcknowledgeHandRaise = async (handRaiseId) => {
+        if (!activeRoom?.sessionId || !token) return;
         try {
-            await fetch(`${LIVE_CLASS_API_URL}/end-room/${activeRoom.id}`, {
+            const res = await fetch(`${LIVE_CLASS_API_URL}/hand-raise/${activeRoom.sessionId}/acknowledge`, {
                 method: 'POST',
-                headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ handRaiseId }),
             });
+            const data = await res.json();
+            if (data.success) {
+                setHandRaises(prev => prev.filter((hr) => hr.id !== handRaiseId));
+            }
+        } catch (err) {
+            console.error('Failed to acknowledge hand raise:', err);
+        }
+    };
+
+    const handleEndClass = async () => {
+        if (!activeRoom || !token) return;
+        try {
+            const res = await fetch(`${LIVE_CLASS_API_URL}/end-room/${activeRoom.id}`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            const data = await res.json();
+            if (!data.success && data.error && data.error.includes('Access denied')) {
+                setError('You do not have permission to end live classes. Only teachers can perform this action.');
+                return;
+            }
             setActiveRoom(null);
+            setHandRaises([]);
+            setAttendance([]);
             fetchRooms();
         } catch (err) {
             console.error('Failed to end class:', err);
+            setError('Failed to end class session. Please try again.');
         }
     };
 
@@ -236,6 +323,29 @@ const LiveClassPage = () => {
 
         return '';
     };
+
+    // Check if user has teacher role
+    const normalizedRole = normalizeRole(admin?.role);
+    const isTeacher = normalizedRole === "teacher" || normalizedRole === "programmer_admin";
+    
+    // Show access denied if not teacher
+    if (!isTeacher) {
+        return (
+            <MasterLayout>
+                <div className="d-flex flex-column align-items-center justify-content-center" style={{ minHeight: '60vh' }}>
+                    <div className="text-center">
+                        <div className="mb-24 p-24 bg-danger-50 rounded-circle d-inline-flex">
+                            <i className="ri-error-warning-line text-6xl text-danger-600" />
+                        </div>
+                        <h4 className="fw-semibold mb-8 text-neutral-800">Access Denied</h4>
+                        <p className="text-secondary-light mb-32" style={{ maxWidth: '400px' }}>
+                            Only teachers can access live classes. Please contact an administrator if you need access.
+                        </p>
+                    </div>
+                </div>
+            </MasterLayout>
+        );
+    }
 
     return (
         <MasterLayout>
@@ -293,7 +403,7 @@ const LiveClassPage = () => {
                                 </p>
 
                                 <div className="w-100" style={{ maxWidth: '400px' }}>
-                                    <div className="mb-16 text-start">
+                                    <div className="mb-24 text-start">
                                         <label className="form-label fw-semibold text-primary-light text-sm mb-8">Select Course</label>
                                         <select
                                             className="form-select form-control radius-8"
@@ -307,20 +417,6 @@ const LiveClassPage = () => {
                                                     {course.name || course.title} {course.slug ? `(${course.slug})` : ''}
                                                 </option>
                                             ))}
-                                        </select>
-                                    </div>
-
-                                    <div className="mb-24 text-start">
-                                        <label className="form-label fw-semibold text-primary-light text-sm mb-8">Role</label>
-                                        <select
-                                            className="form-select form-control radius-8"
-                                            value={manualRole}
-                                            onChange={(e) => setManualRole(e.target.value)}
-                                        >
-                                            <option value="auto">Auto-Detect Role (Recommended)</option>
-                                            <option value="teacher">Force Role: Teacher</option>
-                                            <option value="host">Force Role: Host</option>
-                                            <option value="broadcaster">Force Role: Broadcaster</option>
                                         </select>
                                     </div>
 
@@ -404,7 +500,7 @@ const LiveClassPage = () => {
                                 </h6>
                             </div>
                         </div>
-                        <div className="d-flex align-items-center gap-16">
+                        <div className="d-flex align-items-center gap-16 flex-wrap">
                             {/* Link Copy Component */}
                             <div className="d-none d-md-flex align-items-center gap-12 bg-neutral-50 px-16 py-8 radius-8 border border-neutral-200">
                                 <span className="text-secondary-light text-xs fw-medium text-uppercase tracking-wider">Student Link:</span>
@@ -422,6 +518,22 @@ const LiveClassPage = () => {
                                 </div>
                             </div>
 
+                            {/* Hand Raises Badge */}
+                            {handRaises.length > 0 && (
+                                <div className="d-flex align-items-center gap-8 bg-warning-50 px-12 py-6 radius-8 border border-warning-200">
+                                    <i className="ri-hand-raise-line text-warning-600 text-lg" />
+                                    <span className="text-warning-700 text-sm fw-semibold">{handRaises.length}</span>
+                                </div>
+                            )}
+
+                            {/* Attendance Badge */}
+                            {attendance.length > 0 && (
+                                <div className="d-flex align-items-center gap-8 bg-success-50 px-12 py-6 radius-8 border border-success-200">
+                                    <i className="ri-user-line text-success-600 text-lg" />
+                                    <span className="text-success-700 text-sm fw-semibold">{attendance.filter((a) => a.is_present).length}</span>
+                                </div>
+                            )}
+
                             <div className="w-1-px h-32-px bg-neutral-200 mx-8 d-none d-md-block"></div>
 
                             <button
@@ -433,13 +545,86 @@ const LiveClassPage = () => {
                             </button>
                         </div>
                     </div>
-                    <div className="card-body p-0 bg-black" style={{ height: '75vh' }}>
+                    <div className="row g-0">
+                        <div className="col-12 col-lg-9">
+                    <div className="card-body p-0 bg-black position-relative" style={{ height: '75vh' }}>
                         <iframe
                             title="Live Class"
                             src={getIframeUrl()}
                             style={{ width: '100%', height: '100%', border: 'none' }}
                             allow="camera; microphone; fullscreen; display-capture; autoplay; screen-wake-lock"
+                            allowFullScreen
                         />
+                    </div>
+                        </div>
+                        <div className="col-12 col-lg-3 border-start">
+                            <div className="card-body p-16" style={{ height: '75vh', overflowY: 'auto' }}>
+                                {/* Hand Raises Panel */}
+                                {handRaises.length > 0 && (
+                                    <div className="mb-24">
+                                        <h6 className="fw-semibold mb-12 d-flex align-items-center gap-2">
+                                            <i className="ri-hand-raise-line text-warning-600" />
+                                            Hand Raises ({handRaises.length})
+                                        </h6>
+                                        <div className="d-flex flex-column gap-8">
+                                            {handRaises.map((hr) => (
+                                                <div key={hr.id} className="d-flex align-items-center justify-content-between p-12 bg-warning-50 radius-8 border border-warning-200">
+                                                    <div className="flex-grow-1">
+                                                        <p className="text-sm fw-medium mb-0">
+                                                            {hr.users?.first_name} {hr.users?.last_name}
+                                                        </p>
+                                                        <p className="text-xs text-secondary-light mb-0">
+                                                            {new Date(hr.raised_at).toLocaleTimeString()}
+                                                        </p>
+                                                    </div>
+                                                    <button
+                                                        className="btn btn-sm btn-warning-600 radius-4"
+                                                        onClick={() => handleAcknowledgeHandRaise(hr.id)}
+                                                        title="Acknowledge"
+                                                    >
+                                                        <i className="ri-check-line" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Attendance Panel */}
+                                {attendance.length > 0 && (
+                                    <div>
+                                        <h6 className="fw-semibold mb-12 d-flex align-items-center gap-2">
+                                            <i className="ri-user-line text-success-600" />
+                                            Attendance ({attendance.filter((a) => a.is_present).length}/{attendance.length})
+                                        </h6>
+                                        <div className="d-flex flex-column gap-6">
+                                            {attendance.map((a) => (
+                                                <div key={a.id} className="d-flex align-items-center gap-8 p-8 bg-base radius-4">
+                                                    <span className={`w-8-px h-8-px rounded-circle ${a.is_present ? 'bg-success-600' : 'bg-gray-400'}`} />
+                                                    <div className="flex-grow-1">
+                                                        <p className="text-xs fw-medium mb-0">
+                                                            {a.users?.first_name} {a.users?.last_name}
+                                                        </p>
+                                                        {a.duration_seconds > 0 && (
+                                                            <p className="text-xs text-secondary-light mb-0">
+                                                                {Math.floor(a.duration_seconds / 60)} min
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {handRaises.length === 0 && attendance.length === 0 && (
+                                    <div className="text-center py-32">
+                                        <i className="ri-information-line text-4xl text-secondary-light mb-12 d-block" />
+                                        <p className="text-sm text-secondary-light mb-0">No active interactions</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}

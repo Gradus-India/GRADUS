@@ -101,6 +101,8 @@ const TestimonialsPage = lazy(() => import("./pages/TestimonialsPage"));
 const ExpertVideosPage = lazy(() => import("./pages/ExpertVideosPage"));
 const WhyGradusVideoPage = lazy(() => import("./pages/WhyGradusVideoPage"));
 const LiveClassPage = lazy(() => import("./pages/LiveClassPage"));
+const RecordingsPage = lazy(() => import("./pages/RecordingsPage"));
+const RequirePageAccess = lazy(() => import("./components/RequirePageAccess"));
 
 const BannersPage = lazy(() => import("./pages/BannersPage"));
 const PartnerLogosPage = lazy(() => import("./pages/PartnerLogosPage"));
@@ -203,7 +205,16 @@ function App() {
           <Route exact path='/testimonials' element={<TestimonialsPage />} />
           <Route exact path='/expert-videos' element={<ExpertVideosPage />} />
           <Route exact path='/why-gradus-video' element={<WhyGradusVideoPage />} />
-          <Route exact path='/live-class' element={<LiveClassPage />} />
+          <Route exact path='/live-class' element={
+            <RequirePageAccess pageKey="live_classes">
+              <LiveClassPage />
+            </RequirePageAccess>
+          } />
+          <Route exact path='/recordings' element={
+            <RequirePageAccess pageKey="live_classes">
+              <RecordingsPage />
+            </RequirePageAccess>
+          } />
 
           <Route exact path='/banners' element={<BannersPage />} />
           <Route exact path='/page-meta' element={<PageMetaPage />} />

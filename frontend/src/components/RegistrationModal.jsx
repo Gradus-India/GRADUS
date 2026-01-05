@@ -17,6 +17,20 @@ const RegistrationModal = ({ isOpen, onClose, programName, programType, slug, la
 
     const [loading, setLoading] = useState(false);
 
+    // Check if masterclass time has passed
+    const isMasterclassPast = React.useMemo(() => {
+        if (!date || !time) return false;
+        try {
+            const dateTimeStr = `${date} ${time}`;
+            const masterclassDateTime = new Date(dateTimeStr);
+            if (isNaN(masterclassDateTime.getTime())) return false;
+            return masterclassDateTime.getTime() < new Date().getTime();
+        } catch (error) {
+            console.warn("Failed to parse masterclass date/time:", error);
+            return false;
+        }
+    }, [date, time]);
+
     // Focus trap or simple overlay click to close
     useEffect(() => {
         const handleEsc = (e) => {
@@ -161,6 +175,12 @@ const RegistrationModal = ({ isOpen, onClose, programName, programType, slug, la
     const handleSubmit = async (e) => {
         e.preventDefault();
 
+        // Check if masterclass time has passed
+        if (isMasterclassPast) {
+            toast.error("Registration is closed. This masterclass has already taken place. Please check our upcoming masterclasses for future events.");
+            return;
+        }
+
         if (!isAuthorized) {
             toast.error("Please check the authorization box to proceed with registration.");
             return;
@@ -243,11 +263,13 @@ const RegistrationModal = ({ isOpen, onClose, programName, programType, slug, la
             // Make error messages more user-friendly
             if (errorMessage.includes("already registered")) {
                 // Keep the backend message as it's already user-friendly
+            } else if (errorMessage.includes("Registration is closed") || errorMessage.includes("already taken place")) {
+                // Keep the backend message as it's already user-friendly
             } else if (errorMessage.includes("Phone number must be")) {
                 errorMessage = "Please enter a valid 10-digit phone number.";
             } else if (errorMessage.includes("Failed to validate")) {
                 errorMessage = "We're having trouble processing your registration. Please try again in a moment.";
-            } else if (!errorMessage.includes("already") && !errorMessage.includes("phone") && !errorMessage.includes("email")) {
+            } else if (!errorMessage.includes("already") && !errorMessage.includes("phone") && !errorMessage.includes("email") && !errorMessage.includes("closed")) {
                 errorMessage = "We couldn't complete your registration. Please check your details and try again.";
             }
             
@@ -283,6 +305,21 @@ const RegistrationModal = ({ isOpen, onClose, programName, programType, slug, la
                 ) : (
                     <>
                         <h2 className="modal-title">Register Now</h2>
+                        {isMasterclassPast && (
+                            <div style={{
+                                padding: '12px 16px',
+                                backgroundColor: '#fff3cd',
+                                border: '1px solid #ffc107',
+                                borderRadius: '8px',
+                                marginBottom: '20px',
+                                color: '#856404'
+                            }}>
+                                <strong>Registration Closed</strong>
+                                <p style={{ margin: '8px 0 0 0', fontSize: '14px' }}>
+                                    This masterclass has already taken place. Please check our upcoming masterclasses for future events.
+                                </p>
+                            </div>
+                        )}
                         <form onSubmit={handleSubmit} className="modal-form">
                             <div className="form-group">
                                 <label>Name *</label>
@@ -293,6 +330,7 @@ const RegistrationModal = ({ isOpen, onClose, programName, programType, slug, la
                                     value={formData.name}
                                     onChange={handleChange}
                                     required
+                                    disabled={isMasterclassPast}
                                 />
                             </div>
 
@@ -305,6 +343,7 @@ const RegistrationModal = ({ isOpen, onClose, programName, programType, slug, la
                                     value={formData.email}
                                     onChange={handleChange}
                                     required
+                                    disabled={isMasterclassPast}
                                 />
                             </div>
 
@@ -321,6 +360,7 @@ const RegistrationModal = ({ isOpen, onClose, programName, programType, slug, la
                                         maxLength={10}
                                         pattern="[0-9]{10}"
                                         required
+                                        disabled={isMasterclassPast}
                                     />
                                 </div>
                             </div>
@@ -342,6 +382,7 @@ const RegistrationModal = ({ isOpen, onClose, programName, programType, slug, la
                                     value={formData.qualification}
                                     onChange={(opt) => handleSelectChange("qualification", opt)}
                                     placeholder="Select qualification"
+                                    isDisabled={isMasterclassPast}
                                 />
                             </div>
 
@@ -351,6 +392,7 @@ const RegistrationModal = ({ isOpen, onClose, programName, programType, slug, la
                                     id="auth-check"
                                     checked={isAuthorized}
                                     onChange={(e) => setIsAuthorized(e.target.checked)}
+                                    disabled={isMasterclassPast}
                                 />
                                 <label htmlFor="auth-check" style={{ fontSize: '0.85rem', color: '#666', lineHeight: '1.4' }}>
                                     I authorize Gradus Team to reach out to me with updates and notifications via Email, SMS, WhatsApp and RCS.
@@ -360,10 +402,13 @@ const RegistrationModal = ({ isOpen, onClose, programName, programType, slug, la
                             <button
                                 type="submit"
                                 className="cta-button modal-submit-btn"
-                                disabled={loading || !isAuthorized}
-                                style={{ opacity: isAuthorized ? 1 : 0.6, cursor: isAuthorized ? 'pointer' : 'not-allowed' }}
+                                disabled={loading || !isAuthorized || isMasterclassPast}
+                                style={{ 
+                                    opacity: (isAuthorized && !isMasterclassPast) ? 1 : 0.6, 
+                                    cursor: (isAuthorized && !isMasterclassPast) ? 'pointer' : 'not-allowed' 
+                                }}
                             >
-                                {loading ? "Registering..." : "Register For Free"}
+                                {loading ? "Registering..." : isMasterclassPast ? "Registration Closed" : "Register For Free"}
                             </button>
                         </form>
                     </>

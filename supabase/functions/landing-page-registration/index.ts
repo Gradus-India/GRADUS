@@ -36,6 +36,32 @@ serve(async (req) => {
     if (req.method === "POST") {
       const { name, email, phone, state, qualification, program_name, landing_page_id, mentor_name, date, time, key_benefit } = await req.json();
 
+      // Check if masterclass time has passed - registrations should be closed after the event time
+      if (date && time) {
+        try {
+          // Parse date and time (format: "18 December 2025" and "6:00 PM")
+          const dateTimeStr = `${date} ${time}`;
+          const masterclassDateTime = new Date(dateTimeStr);
+          
+          // Check if the date is valid
+          if (!isNaN(masterclassDateTime.getTime())) {
+            const now = new Date();
+            // If masterclass time has passed, reject registration
+            if (masterclassDateTime.getTime() < now.getTime()) {
+              return new Response(JSON.stringify({ 
+                error: "Registration is closed. This masterclass has already taken place. Please check our upcoming masterclasses for future events." 
+              }), {
+                headers: { ...cors, "Content-Type": "application/json" },
+                status: 400,
+              });
+            }
+          }
+        } catch (dateError) {
+          // If date parsing fails, log but don't block registration (graceful degradation)
+          console.warn("Failed to parse masterclass date/time:", dateError);
+        }
+      }
+
       // Validate phone number: must be exactly 10 digits (after removing +91 prefix if present)
       let phoneDigits = phone.replace(/\D/g, "");
       // Only remove 91 if it's likely a country code (length > 10 and starts with 91)
