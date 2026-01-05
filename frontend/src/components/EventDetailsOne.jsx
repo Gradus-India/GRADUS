@@ -103,11 +103,10 @@ const OverviewTab = ({ event, overviewText }) => {
       ))}
       {/* 1. Why It Matters (from Masterclass Details) */}
       {event?.masterclassDetails?.overview?.whyMatters?.title ? (
-        <div className='bg-light p-4 rounded-4 border mb-5'>
-          <h4 className='mb-3 flex align-items-start gap-2 text-main-600'>
-            <i className='ph-bold ph-lightbulb mt-1' />
+        <div className='mb-5'>
+          <h3 className='event-section-title'>
             {event.masterclassDetails.overview.whyMatters.title}
-          </h4>
+          </h3>
           <p className='text-neutral-600 mb-0'>
             {event.masterclassDetails.overview.whyMatters.description}
           </p>
@@ -121,7 +120,7 @@ const OverviewTab = ({ event, overviewText }) => {
           <div className='row g-3'>
             {event.masterclassDetails.overview.whoIsFor.map((item, idx) => (
               <div key={idx} className='col-md-6'>
-                <div className='d-flex align-items-start gap-3 p-3 rounded-3 border bg-white h-100'>
+                <div className='d-flex align-items-start gap-3 h-100'>
                   <span className='d-flex align-items-center justify-content-center w-24 h-24 rounded-circle bg-success-100 text-success-600 flex-shrink-0'>
                     <i className='ph-bold ph-check' style={{ fontSize: "14px" }} />
                   </span>
