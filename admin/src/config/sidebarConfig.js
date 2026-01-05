@@ -144,12 +144,6 @@ export const sidebarConfig = [
     icon: "solar:calendar-bold-duotone",
   },
   {
-    key: "masterclasses",
-    path: "/masterclasses-admin",
-    label: "Masterclasses",
-    icon: "solar:star-bold-duotone",
-  },
-  {
     key: "event_registrations",
     path: "/event-registrations",
     label: "Event Registrations",

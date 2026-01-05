@@ -106,7 +106,6 @@ const BannersPage = lazy(() => import("./pages/BannersPage"));
 const PartnerLogosPage = lazy(() => import("./pages/PartnerLogosPage"));
 const PageMetaPage = lazy(() => import("./pages/PageMetaPage"));
 const EventsAdminPage = lazy(() => import("./pages/EventsAdminPage"));
-const MasterclassAdminPage = lazy(() => import("./pages/MasterclassAdminPage"));
 const ComingSoonPage = lazy(() => import("./pages/ComingSoonPage"));
 const AccessDeniedPage = lazy(() => import("./pages/AccessDeniedPage"));
 const TicketsPage = lazy(() => import("./pages/TicketsPage.jsx"));
@@ -210,7 +209,6 @@ function App() {
           <Route exact path='/page-meta' element={<PageMetaPage />} />
           <Route exact path='/partner-logos' element={<PartnerLogosPage />} />
           <Route exact path='/events-admin' element={<EventsAdminPage />} />
-          <Route exact path='/masterclasses-admin' element={<MasterclassAdminPage />} />
           <Route exact path='/coming-soon' element={<ComingSoonPage />} />
           <Route exact path='/access-denied' element={<AccessDeniedPage />} />
           <Route exact path='/maintenance' element={<MaintenancePage />} />
