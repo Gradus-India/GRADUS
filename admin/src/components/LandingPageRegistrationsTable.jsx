@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import useAuth from "../hook/useAuth";
 import apiClient from "../services/apiClient";
-import { syncLandingPageRegistrationsToSheet, sendLandingPageRegistrationReminders, updateLandingPageRegistration, deleteLandingPageRegistration } from "../services/adminInquiries";
+import { syncLandingPageRegistrationsToSheet, sendLandingPageRegistrationReminders, updateLandingPageRegistration, deleteLandingPageRegistration, resendLandingPageJoinLinks } from "../services/adminInquiries";
 import { toast } from "react-toastify";
 import * as XLSX from "xlsx";
 
@@ -30,6 +30,7 @@ const LandingPageRegistrationsTable = () => {
     const [editingId, setEditingId] = useState(null);
     const [editForm, setEditForm] = useState({ name: "", email: "", phone: "", qualification: "" });
     const [deletingId, setDeletingId] = useState(null);
+    const [resendingLinks, setResendingLinks] = useState(false);
     const [reloadKey, setReloadKey] = useState(0);
 
     useEffect(() => {
@@ -326,6 +327,62 @@ const LandingPageRegistrationsTable = () => {
         }
     };
 
+    const handleResendLinks = async () => {
+        if (!token) return;
+
+        if (!filteredItems.length) {
+            setActionMessage({
+                type: "danger",
+                text: "No registrations available to resend links.",
+            });
+            return;
+        }
+
+        const confirmed = window.confirm(
+            `Resend updated join links to ${filteredItems.length} registration(s)?`
+        );
+        if (!confirmed) return;
+
+        setResendingLinks(true);
+        setActionMessage(null);
+
+        try {
+            const registrationIds = filteredItems.map(item => item.id);
+            const response = await resendLandingPageJoinLinks({
+                token,
+                registrationIds,
+            });
+            
+            const sent = typeof response?.sent === "number" ? response.sent : filteredItems.length;
+            const failed = typeof response?.failed === "number" ? response.failed : 0;
+            const skipped = typeof response?.skipped === "number" ? response.skipped : 0;
+            
+            if (failed === 0 && skipped === 0) {
+                setActionMessage({
+                    type: "success",
+                    text: response?.message || `Join links resent to ${sent} registration(s).`,
+                });
+            } else if (failed === 0) {
+                setActionMessage({
+                    type: "info",
+                    text: response?.message || `Sent ${sent} link(s). ${skipped} email(s) skipped (invalid addresses).`,
+                });
+            } else {
+                setActionMessage({
+                    type: "warning",
+                    text: response?.message || `Sent ${sent} link(s). ${failed} failed. ${skipped > 0 ? `${skipped} skipped.` : ''}`,
+                });
+            }
+        } catch (err) {
+            setActionMessage({
+                type: "danger",
+                text: err?.message || "Failed to resend join links.",
+            });
+        } finally {
+            setResendingLinks(false);
+        }
+    };
+
     return (
         <div className='card h-100 p-0 radius-12 overflow-hidden'>
             <div className='card-header border-bottom bg-base py-16 px-24'>
@@ -337,6 +394,16 @@ const LandingPageRegistrationsTable = () => {
                         </p>
                     </div>
                     <div className='d-flex flex-wrap gap-12 ms-auto align-items-center'>
+                        <button
+                            type='button'
+                            className='btn btn-warning btn-sm'
+                            onClick={handleResendLinks}
+                            disabled={resendingLinks || loading || filteredItems.length === 0}
+                            title='Resend updated join links to filtered registrations'
+                        >
+                            <i className='ph ph-link' style={{ marginRight: '6px' }}></i>
+                            {resendingLinks ? "Sending..." : "Resend Links"}
+                        </button>
                         <button
                             type='button'
                             className='btn btn-info btn-sm'

@@ -206,7 +206,7 @@ serve(async (req) => {
         zoomLink = "https://us06web.zoom.us/j/84317772672?pwd=adYOZ0oj0FAeEAvYiaZeUGPQLGZOe2.1";
         bannerImage = "email-banner-vaibhav.png";
       } else if (normalizedMentorName.includes("akhil pandey")) {
-        zoomLink = "https://us06web.zoom.us/j/89785000556?pwd=Om0roPIrvSjf7Jk6nRfaRYAxRZSuXa.1";
+        zoomLink = "https://us06web.zoom.us/j/86287028489?pwd=Irc39waKbrffBsIWyUtnwb2n9iQIZm.1";
         bannerImage = "email-banner-akhil.png";
       }
 

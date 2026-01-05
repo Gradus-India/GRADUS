@@ -156,3 +156,13 @@ export const deleteLandingPageRegistration = ({
     method: "DELETE",
     token,
   });
+
+export const resendLandingPageJoinLinks = ({
+  token,
+  registrationIds,
+} = {}) =>
+  apiClient(`/admin/landing-pages/registrations/resend-links`, {
+    method: "POST",
+    token,
+    data: { registrationIds },
+  });
