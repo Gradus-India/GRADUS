@@ -60,16 +60,12 @@ const EventDetailsPage = () => {
       <Animation />
       <Animation />
       {/* If it is a Masterclass, we skip standard Header/Footer here because the Template has them */}
-      {state.event?.isMasterclass ? (
-        <MasterclassTemplate event={state.event} />
-      ) : (
-        <>
-          <HeaderOne />
-          <EventDetailsOne event={state.event} loading={state.loading} error={state.error} />
-          <CertificateOne />
-          <FooterOne />
-        </>
-      )}
+      <>
+        <HeaderOne />
+        <EventDetailsOne event={state.event} loading={state.loading} error={state.error} />
+        <CertificateOne />
+        <FooterOne />
+      </>
     </>
   );
 };

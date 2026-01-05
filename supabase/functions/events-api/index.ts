@@ -103,19 +103,28 @@ const mapEvent = (event: any) => {
     id: event.id,
     slug: event.slug,
     name: displayName,
-    title: displayName, // For website compatibility
+    title: displayName,
+    subtitle: event.subtitle || "",
+    summary: event.summary || "",
     description: event.description || "",
     eventType: event.event_type || "Masterclass",
+    badge: event.badge || "",
+    category: event.category || "",
+    isMasterclass: Boolean(event.is_masterclass),
     heroImage: event.hero_image || {},
     featuredImage: event.featured_image || {},
     schedule: event.schedule || {},
     location: event.location || {},
     host: event.host || {},
     price: event.price || {},
+    cta: event.cta || {}, // Crucial for registration link
+    meta: event.meta || {}, // Crucial for highlights, agenda, support
+    masterclassDetails: event.masterclass_details || {}, // Crucial for Masterclass Template
     stats: event.stats || {},
     status: event.status,
     speakers: event.speakers || [],
     registration: event.registration || {},
+    isFeatured: Boolean(event.is_featured),
     createdAt: event.created_at,
     updatedAt: event.updated_at,
   };

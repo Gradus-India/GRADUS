@@ -23173,11 +23173,13 @@ img[src="/assets/images/shapes/shape3.png"]:hover {
 }
 
 .event-highlight-list {
-  padding-left: 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  padding-left: 1.5rem;
   color: var(--neutral-700, #475467);
+  list-style-type: disc;
+}
+
+.event-highlight-list li {
+  margin-bottom: 8px;
 }
 
 .event-instructor-card {
