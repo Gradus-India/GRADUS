@@ -47,12 +47,21 @@ const VideoTestimonials = () => {
 
   const normalizeItems = useCallback((list) => {
     if (!Array.isArray(list)) return [];
-    return list
+
+    // Debug: Log incoming data
+    console.log("Found raw testimonials:", list.length, list);
+
+    const valid = list
       .map((item, idx) => {
         if (!item) return null;
         const playbackUrl =
           item.playbackUrl || item.videoUrl || item.video || item.src || item.url || item?.mediaUrl || "";
-        if (!playbackUrl) return null;
+
+        if (!playbackUrl) {
+          console.warn("Dropping testimonial without video:", item);
+          return null;
+        }
+
         const thumbnailUrl =
           item.thumbnailUrl || item.poster || item.imageUrl || item.thumbUrl || item.thumbnail || "";
         return {
@@ -63,6 +72,9 @@ const VideoTestimonials = () => {
         };
       })
       .filter(Boolean);
+
+    console.log("Normalized valid testimonials:", valid.length);
+    return valid;
   }, []);
 
   const registerVideo = useCallback((key, node) => {
