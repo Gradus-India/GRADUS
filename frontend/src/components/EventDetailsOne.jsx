@@ -399,6 +399,9 @@ const RegistrationCard = ({ event }) => {
     }
   };
 
+  // Helper to check if name field is filled/readonly
+  const userName = user?.fullname || user?.full_name || user?.name || user?.user_metadata?.fullname || user?.user_metadata?.full_name || user?.user_metadata?.name;
+
   return (
     <aside className='event-register-card'>
       <div className='event-register-card__thumb'>
