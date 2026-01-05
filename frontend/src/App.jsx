@@ -12,19 +12,19 @@ import SiteAnalyticsTracker from "./components/SiteAnalyticsTracker.jsx";
 import HelpLauncher from "./components/HelpLauncher.jsx";
 import GoogleOneTap from "./components/GoogleOneTap.jsx";
 
-const HomePageOne = lazy(() => import("./pages/HomePageOne"));
-const AboutPage = lazy(() => import("./pages/AboutPage.jsx"));
+import HomePageOne from "./pages/HomePageOne";
+import AboutPage from "./pages/AboutPage.jsx";
 const ApplyAdmissionPage = lazy(() => import("./pages/ApplyAdmissionPage.jsx"));
-const BlogPage = lazy(() => import("./pages/BlogPage.jsx"));
+import BlogPage from "./pages/BlogPage.jsx";
 const BlogDetailsPage = lazy(() => import("./pages/BlogDetailsPage.jsx"));
 const BookOnlineClassPage = lazy(() => import("./pages/BookOnlineClassPage.jsx"));
 const CartPage = lazy(() => import("./pages/CartPage.jsx"));
 const CheckoutPage = lazy(() => import("./pages/CheckoutPage.jsx"));
-const ContactPage = lazy(() => import("./pages/ContactPage.jsx"));
+import ContactPage from "./pages/ContactPage.jsx";
 const CoursePage = lazy(() => import("./pages/CoursePage.jsx"));
 const CourseDetailsPage = lazy(() => import("./pages/CourseDetailsPage.jsx"));
 const EventDetailsPage = lazy(() => import("./pages/EventDetailsPage.jsx"));
-const EventsPage = lazy(() => import("./pages/EventsPage.jsx"));
+import EventsPage from "./pages/EventsPage.jsx";
 const MyCoursesPage = lazy(() => import("./pages/MyCoursesPage.jsx"));
 const FindTutorsPage = lazy(() => import("./pages/FindTutorsPage.jsx"));
 const GalleryPage = lazy(() => import("./pages/GalleryPage.jsx"));
@@ -57,7 +57,7 @@ const SocialPortfolioPage = lazy(() => import("./pages/SocialPortfolioPage.jsx")
 const ProgrammeCoursePage = lazy(() => import("./pages/ProgrammeCoursePage.jsx"));
 const CourseHomePage = lazy(() => import("./pages/CourseHomePage.jsx"));
 const GoogleAuthCallback = lazy(() => import("./pages/GoogleAuthCallback.jsx"));
-const OurCoursesPage = lazy(() => import("./pages/OurCoursesPage.jsx"));
+import OurCoursesPage from "./pages/OurCoursesPage.jsx";
 const JoinLiveClass = lazy(() => import("./pages/JoinLiveClass.jsx"));
 const VaibhavBatraMasterclass = lazy(() => import("./pages/VaibhavBatraMasterclass.jsx"));
 
