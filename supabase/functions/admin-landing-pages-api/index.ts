@@ -398,7 +398,7 @@ serve(async (req: Request) => {
             zoomLink = "https://us06web.zoom.us/j/84317772672?pwd=adYOZ0oj0FAeEAvYiaZeUGPQLGZOe2.1";
             bannerImage = "email-banner-vaibhav.png";
           } else if (normalizedMentorName.includes("akhil") || normalizedMentorName.includes("akhil pandey")) {
-            zoomLink = "https://us06web.zoom.us/j/89785000556?pwd=Om0roPIrvSjf7Jk6nRfaRYAxRZSuXa.1";
+            zoomLink = "https://us06web.zoom.us/j/86287028489?pwd=Irc39waKbrffBsIWyUtnwb2n9iQIZm.1";
             bannerImage = "email-banner-akhil.png";
           }
 
@@ -489,6 +489,197 @@ serve(async (req: Request) => {
       }
 
       let message = `Reminder emails sent to ${sentCount} registration(s).`;
+      if (skippedCount > 0) {
+        message += ` ${skippedCount} email(s) skipped (invalid or non-existent addresses).`;
+      }
+      if (failedCount > 0) {
+        message += ` ${failedCount} email(s) failed.`;
+      }
+
+      return jsonResponse({
+        message,
+        sent: sentCount,
+        failed: failedCount,
+        skipped: skippedCount,
+        errors: errors.length > 0 ? errors : undefined,
+        skippedEmails: skipped.length > 0 ? skipped : undefined,
+      }, 200, cors);
+    }
+
+    // RESEND JOIN LINKS - POST /registrations/resend-links
+    if (apiPath === "/registrations/resend-links" && req.method === "POST") {
+      const body = await req.json();
+      const registrationIds = body.registrationIds || [];
+
+      // Fetch registrations with landing page details
+      let query = supabase
+        .from("landing_page_registrations")
+        .select(`
+          *,
+          landing_pages (
+            id,
+            title,
+            hero,
+            mentor
+          )
+        `);
+
+      if (registrationIds.length > 0) {
+        query = query.in("id", registrationIds);
+      }
+
+      const { data: registrations, error: fetchError } = await query;
+
+      if (fetchError) {
+        return jsonResponse({ error: fetchError.message }, 500, cors);
+      }
+
+      if (!registrations || registrations.length === 0) {
+        return jsonResponse({ 
+          message: "No registrations found to resend links.",
+          sent: 0 
+        }, 200, cors);
+      }
+
+      const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+      const functionsUrl = `${supabaseUrl}/functions/v1/send-email`;
+
+      let sentCount = 0;
+      let failedCount = 0;
+      let skippedCount = 0;
+      const errors: string[] = [];
+      const skipped: string[] = [];
+
+      // Email validation helper
+      const isValidEmail = (email: string): boolean => {
+        if (!email || typeof email !== "string") return false;
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email.trim());
+      };
+
+      // Process each registration
+      for (const reg of registrations) {
+        // Skip if email is invalid or missing
+        const hasValidEmail = reg.email && isValidEmail(reg.email);
+        if (!hasValidEmail) {
+          skippedCount++;
+          skipped.push(`${reg.name || "Unknown"} (${reg.email || "no email"}): Invalid or missing email address`);
+          console.log(`[resend-links] Skipping ${reg.name} - invalid email: ${reg.email}`);
+          continue;
+        }
+
+        try {
+          const landingPage = reg.landing_pages;
+          const hero = landingPage?.hero as any;
+          const mentor = landingPage?.mentor as any;
+          
+          // Extract data from landing page
+          const date = hero?.date || "TBD";
+          const time = hero?.time || "TBD";
+          const mentorName = hero?.mentorName || mentor?.name || "our expert";
+          const programName = reg.program_name || landingPage?.title || "Masterclass";
+          
+          // Determine Zoom Link and Banner Image based on Mentor Name
+          let zoomLink = "#";
+          let bannerImage = "";
+          const normalizedMentorName = (mentorName || "").toLowerCase().trim();
+          const baseUrl = "https://gradusindia.in";
+
+          if (normalizedMentorName.includes("vaibhav batra")) {
+            zoomLink = "https://us06web.zoom.us/j/84317772672?pwd=adYOZ0oj0FAeEAvYiaZeUGPQLGZOe2.1";
+            bannerImage = "email-banner-vaibhav.png";
+          } else if (normalizedMentorName.includes("akhil") || normalizedMentorName.includes("akhil pandey")) {
+            zoomLink = "https://us06web.zoom.us/j/86287028489?pwd=Irc39waKbrffBsIWyUtnwb2n9iQIZm.1";
+            bannerImage = "email-banner-akhil.png";
+          }
+
+          const bannerHtml = bannerImage 
+            ? `<div style="text-align: center; margin-bottom: 20px;">
+                 <img src="${baseUrl}/assets/${bannerImage}" alt="${mentorName} Masterclass" style="max-width: 100%; height: auto; border-radius: 8px;" />
+               </div>`
+            : "";
+
+          const emailBody = `
+            <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto;">
+                ${bannerHtml}
+                <p>Hi ${reg.name},</p>
+                <p><strong>Updated Masterclass Link!</strong></p>
+                
+                <p><strong>📅 Date:</strong> ${date}<br>
+                <strong>⏰ Time:</strong> ${time}</p>
+                
+                <p>In this session, <strong>${mentorName}</strong> will share valuable insights and practical takeaways.</p>
+                
+                <p>🎟 Seats are limited—don't miss out!</p>
+                <p>👉 <strong>Join Zoom Meeting:</strong> <a href="${zoomLink}" style="color: #0066cc; text-decoration: underline;">${zoomLink}</a></p>
+                
+                <p><strong>Meeting Details:</strong></p>
+                <ul>
+                  <li><strong>Meeting ID:</strong> 862 8702 8489</li>
+                  <li><strong>Passcode:</strong> 235108</li>
+                </ul>
+                
+                <p>We look forward to having you join us.</p>
+                <p>Best Regards,<br>Team Gradus</p>
+            </div>
+          `;
+
+          // Send email with updated link
+          try {
+            const emailResponse = await fetch(functionsUrl, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${supabaseKey}`,
+              },
+              body: JSON.stringify({
+                to: reg.email.trim(),
+                subject: `Updated: ${programName} Masterclass - Join Link`,
+                html: emailBody,
+              }),
+            });
+
+            if (!emailResponse.ok) {
+              const errorText = await emailResponse.text();
+              if (errorText.includes("550") || errorText.includes("553") || 
+                  errorText.toLowerCase().includes("invalid") || 
+                  errorText.toLowerCase().includes("not found") ||
+                  errorText.toLowerCase().includes("does not exist") ||
+                  errorText.toLowerCase().includes("user unknown") ||
+                  errorText.toLowerCase().includes("mailbox")) {
+                skippedCount++;
+                skipped.push(`${reg.name} (${reg.email}): Email address does not exist or is invalid`);
+              } else {
+                throw new Error(`Email send failed: ${errorText}`);
+              }
+            } else {
+              sentCount++;
+            }
+          } catch (emailError: any) {
+            const errorMsg = emailError.message || String(emailError);
+            if (errorMsg.includes("550") || errorMsg.includes("553") || 
+                errorMsg.toLowerCase().includes("invalid") || 
+                errorMsg.toLowerCase().includes("not found") || 
+                errorMsg.toLowerCase().includes("does not exist") ||
+                errorMsg.toLowerCase().includes("user unknown") ||
+                errorMsg.toLowerCase().includes("mailbox")) {
+              skippedCount++;
+              skipped.push(`${reg.name} (${reg.email}): Email address does not exist`);
+            } else {
+              failedCount++;
+              errors.push(`${reg.name} (${reg.email}): ${errorMsg}`);
+              console.error(`[resend-links] Failed to send email to ${reg.email}:`, emailError);
+            }
+          }
+        } catch (error: any) {
+          failedCount++;
+          errors.push(`${reg.name} (${reg.email}): ${error.message}`);
+          console.error(`Failed to resend link to ${reg.email}:`, error);
+        }
+      }
+
+      let message = `Join links resent to ${sentCount} registration(s).`;
       if (skippedCount > 0) {
         message += ` ${skippedCount} email(s) skipped (invalid or non-existent addresses).`;
       }
