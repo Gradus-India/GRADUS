@@ -76,7 +76,18 @@ const RegistrationModal = ({ isOpen, onClose, programName, landingPageId, mentor
     ];
 
     const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
+        const { name, value } = e.target;
+        
+        // Phone number validation: only allow digits, max 10 digits
+        if (name === "phone") {
+            // Remove any non-digit characters
+            const digitsOnly = value.replace(/\D/g, "");
+            // Limit to 10 digits
+            const limitedDigits = digitsOnly.slice(0, 10);
+            setFormData({ ...formData, [name]: limitedDigits });
+        } else {
+            setFormData({ ...formData, [name]: value });
+        }
     };
 
     const handleSelectChange = (name, selectedOption) => {
@@ -97,12 +108,25 @@ const RegistrationModal = ({ isOpen, onClose, programName, landingPageId, mentor
         e.preventDefault();
 
         if (!isAuthorized) {
-            toast.error("Please authorize to proceed.");
+            toast.error("Please check the authorization box to proceed with registration.");
             return;
         }
 
         if (!formData.name || !formData.email || !formData.phone) {
-            toast.error("Please fill in all required fields.");
+            toast.error("Please fill in all required fields (Name, Email, and Phone) to continue.");
+            return;
+        }
+
+        // Validate phone number: must be exactly 10 digits
+        const phoneDigits = formData.phone.replace(/\D/g, "");
+        if (phoneDigits.length !== 10) {
+            if (phoneDigits.length === 0) {
+                toast.error("Please enter your 10-digit phone number.");
+            } else if (phoneDigits.length < 10) {
+                toast.error(`Please enter a complete 10-digit phone number. You've entered ${phoneDigits.length} digit${phoneDigits.length > 1 ? 's' : ''}.`);
+            } else {
+                toast.error("Phone number should be exactly 10 digits. Please check and try again.");
+            }
             return;
         }
 
@@ -116,7 +140,7 @@ const RegistrationModal = ({ isOpen, onClose, programName, landingPageId, mentor
 
             const payload = {
                 name: formData.name,
-                email: formData.email,
+                email: formData.email.trim(),
                 phone: phone,
                 state: formData.state?.value || null,
                 qualification: formData.qualification?.value || null,
@@ -127,6 +151,9 @@ const RegistrationModal = ({ isOpen, onClose, programName, landingPageId, mentor
                 time: time,
                 key_benefit: keyBenefit
             };
+
+            // Make API call to register
+            await apiClient.post("/landing-page-registrations", payload);
 
             // Store email for success message before clearing form
             const registeredEmail = formData.email;
@@ -145,7 +172,21 @@ const RegistrationModal = ({ isOpen, onClose, programName, landingPageId, mentor
 
         } catch (error) {
             console.error("Registration failed", error);
-            toast.error("Registration failed. Please try again.");
+            // Handle specific error messages from backend with user-friendly formatting
+            let errorMessage = error?.message || error?.error || "Oops! Something went wrong. Please try again.";
+            
+            // Make error messages more user-friendly
+            if (errorMessage.includes("already registered")) {
+                // Keep the backend message as it's already user-friendly
+            } else if (errorMessage.includes("Phone number must be")) {
+                errorMessage = "Please enter a valid 10-digit phone number.";
+            } else if (errorMessage.includes("Failed to validate")) {
+                errorMessage = "We're having trouble processing your registration. Please try again in a moment.";
+            } else if (!errorMessage.includes("already") && !errorMessage.includes("phone") && !errorMessage.includes("email")) {
+                errorMessage = "We couldn't complete your registration. Please check your details and try again.";
+            }
+            
+            toast.error(errorMessage);
         } finally {
             setLoading(false);
         }
@@ -212,6 +253,8 @@ const RegistrationModal = ({ isOpen, onClose, programName, landingPageId, mentor
                                         placeholder="WhatsApp number"
                                         value={formData.phone}
                                         onChange={handleChange}
+                                        maxLength={10}
+                                        pattern="[0-9]{10}"
                                         required
                                     />
                                 </div>
