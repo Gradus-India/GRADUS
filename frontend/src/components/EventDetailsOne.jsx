@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { submitEventRegistration } from "../services/contactService";
+import { useAuth } from "../context/AuthContext";
 
 const STATE_OPTIONS = [
   "Andhra Pradesh",
@@ -236,6 +237,7 @@ const isWithinJoinWindow = (event) => {
 };
 
 const RegistrationCard = ({ event }) => {
+  const { user } = useAuth(); // Get logged-in user
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -246,6 +248,20 @@ const RegistrationCard = ({ event }) => {
   });
   const [status, setStatus] = useState({ submitting: false, success: false, error: null });
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+
+  // Auto-fill form and prevent editing if logged in
+  useEffect(() => {
+    if (user) {
+      setForm((prev) => ({
+        ...prev,
+        name: user.full_name || user.name || prev.name,
+        email: user.email || prev.email,
+        phone: user.phone || user.whatsapp_number || prev.phone,
+        state: user.state || prev.state,
+        qualification: user.qualification || prev.qualification,
+      }));
+    }
+  }, [user]);
 
   const { dateLabel, timeLabel, isPast } = useMemo(() => {
     const startIso = event?.schedule?.start;
@@ -294,14 +310,26 @@ const RegistrationCard = ({ event }) => {
   };
 
   const resetForm = () => {
-    setForm({
-      name: "",
-      email: "",
-      phone: "",
-      state: "",
-      qualification: "",
-      consent: false,
-    });
+    // If logged in, we reset to USER data, otherwise empty
+    if (user) {
+      setForm({
+        name: user.full_name || user.name || "",
+        email: user.email || "",
+        phone: user.phone || user.whatsapp_number || "",
+        state: user.state || "",
+        qualification: user.qualification || "",
+        consent: false
+      });
+    } else {
+      setForm({
+        name: "",
+        email: "",
+        phone: "",
+        state: "",
+        qualification: "",
+        consent: false,
+      });
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -369,33 +397,63 @@ const RegistrationCard = ({ event }) => {
       <form className='event-register-card__form' id='event-register-form' onSubmit={handleSubmit}>
         <fieldset disabled={isPast} className='border-0 p-0 m-0'>
           <label className='form-label text-sm fw-semibold'>Name *</label>
-          <input
-            className='form-control'
-            name='name'
-            value={form.name}
-            onChange={handleChange}
-            placeholder='Enter your full name'
-            required
-          />
+          <div className="input-group">
+            <input
+              className={`form-control ${user?.name || user?.full_name ? "bg-light text-muted" : ""}`}
+              name='name'
+              value={form.name}
+              onChange={handleChange}
+              placeholder='Enter your full name'
+              required
+              readOnly={!!(user?.name || user?.full_name)}
+              title={user ? "Name fetched from your profile" : ""}
+            />
+            {user?.name || user?.full_name ? (
+              <span className="input-group-text bg-light border-start-0 text-muted">
+                <i className="ph ph-lock-key"></i>
+              </span>
+            ) : null}
+          </div>
+
           <label className='form-label text-sm fw-semibold mt-16'>Email *</label>
-          <input
-            className='form-control'
-            type='email'
-            name='email'
-            value={form.email}
-            onChange={handleChange}
-            placeholder='you@email.com'
-            required
-          />
+          <div className="input-group">
+            <input
+              className={`form-control ${user?.email ? "bg-light text-muted" : ""}`}
+              type='email'
+              name='email'
+              value={form.email}
+              onChange={handleChange}
+              placeholder='you@email.com'
+              required
+              readOnly={!!user?.email}
+              title={user ? "Email fetched from your profile" : ""}
+            />
+            {user?.email ? (
+              <span className="input-group-text bg-light border-start-0 text-muted">
+                <i className="ph ph-lock-key"></i>
+              </span>
+            ) : null}
+          </div>
+
           <label className='form-label text-sm fw-semibold mt-16'>Phone *</label>
-          <input
-            className='form-control'
-            name='phone'
-            value={form.phone}
-            onChange={handleChange}
-            placeholder='WhatsApp number'
-            required
-          />
+          <div className="input-group">
+            <input
+              className={`form-control ${user?.phone || user?.whatsapp_number ? "bg-light text-muted" : ""}`}
+              name='phone'
+              value={form.phone}
+              onChange={handleChange}
+              placeholder='WhatsApp number'
+              required
+              readOnly={!!(user?.phone || user?.whatsapp_number)}
+              title={user ? "Phone fetched from your profile" : ""}
+            />
+            {user?.phone || user?.whatsapp_number ? (
+              <span className="input-group-text bg-light border-start-0 text-muted">
+                <i className="ph ph-lock-key"></i>
+              </span>
+            ) : null}
+          </div>
+
           <label className='form-label text-sm fw-semibold mt-16'>State *</label>
           <select
             className='form-select'
@@ -403,6 +461,7 @@ const RegistrationCard = ({ event }) => {
             value={form.state}
             onChange={handleChange}
             required
+            disabled={!!user?.state} // Disable if fetched
           >
             <option value=''>Select state</option>
             {STATE_OPTIONS.map((stateName) => (
@@ -411,6 +470,7 @@ const RegistrationCard = ({ event }) => {
               </option>
             ))}
           </select>
+
           <label className='form-label text-sm fw-semibold mt-16'>Qualification *</label>
           <select
             className='form-select'
@@ -418,6 +478,7 @@ const RegistrationCard = ({ event }) => {
             value={form.qualification}
             onChange={handleChange}
             required
+            disabled={!!user?.qualification} // Disable if fetched
           >
             <option value=''>Select qualification</option>
             {QUALIFICATION_OPTIONS.map((option) => (

@@ -131,50 +131,76 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: "Unauthorized" }, 401, cors);
     }
     
-    // POST / - Public Register (Legacy/Masterclass endpoint)
+    // POST / - Public Register
     if ((apiPath === "/" || apiPath === "") && req.method === "POST") {
         const body = await req.json().catch(() => ({}));
         
-        const { user, error } = await verifyUser(req, supabase);
-        if (!user) return jsonResponse({ error: error || "Unauthorized" }, 401, cors);
-        
-        const userId = user.id;
+        // Attempt auth but do not enforce it
+        const { user } = await verifyUser(req, supabase);
+        const userId = user?.id || null;
 
-        // ... existing POST logic logic ...
         if (!body.eventSlug && !body.eventId) {
              return jsonResponse({ error: "Event ID or Slug required" }, 400, cors);
         }
 
         let eventId = body.eventId;
-        if (!eventId && body.eventSlug) {
-             const { data: event } = await supabase.from("events").select("id").eq("slug", body.eventSlug).single();
+        let isMasterclass = false;
+
+        // Fetch Event Details to check Masterclass status
+        if (eventId) {
+            const { data: event } = await supabase.from("events").select("id, is_masterclass").eq("id", eventId).single();
+            if (event) isMasterclass = event.is_masterclass;
+        } else if (body.eventSlug) {
+             const { data: event } = await supabase.from("events").select("id, is_masterclass").eq("slug", body.eventSlug).single();
              if (!event) return jsonResponse({ error: "Event not found" }, 404, cors);
              eventId = event.id;
+             isMasterclass = event.is_masterclass;
         }
 
-        const { data: existing } = await supabase.from("masterclass_registrations")
-            .select("id")
-            .eq("event_id", eventId)
-            .eq("user_id", userId)
-            .maybeSingle();
+        // Logic 1: Masterclass Table (Only if Masterclass)
+        if (isMasterclass) {
+            const { data: existing } = await supabase.from("masterclass_registrations")
+                .select("id")
+                .eq("event_id", eventId)
+                // Only check for duplicate if we have a userId or email
+                .or(userId ? `user_id.eq.${userId}` : `registration_email.eq.${body.email}`)
+                .maybeSingle();
 
-        if (existing) {
-             return jsonResponse({ message: "Already registered", alreadyRegistered: true }, 200, cors);
+            if (existing) {
+                 return jsonResponse({ message: "Already registered", alreadyRegistered: true }, 200, cors);
+            }
+
+            const { data: newReg, error: regError } = await supabase.from("masterclass_registrations").insert([{
+                event_id: eventId,
+                user_id: userId, // Can be null
+                status: "registered",
+                registration_fullname: body.name || body.fullname || null,
+                registration_email: body.email || null,
+                registration_phone: body.phone || null,
+                registration_state: body.state || null,
+                registration_city: body.city || null,
+                registration_college: body.college || null,
+                registration_qualification: body.qualification || null
+            }]).select().single();
+            
+            if (regError) return jsonResponse({ error: regError.message }, 500, cors);
+            return jsonResponse({ success: true, item: newReg }, 201, cors);
         }
-
-        const { data: newReg, error: regError } = await supabase.from("masterclass_registrations").insert([{
+        
+        // Logic 2: Standard Event Registration (Fallback for non-Masterclass)
+        // ... (Existing logic for standard events would go here if needed, but for now we focus on Masterclass as requested)
+         const { data: newReg, error: regError } = await supabase.from("event_registrations").insert([{
             event_id: eventId,
             user_id: userId,
-            status: "registered",
-            registration_fullname: body.fullname || null,
-            registration_email: body.email || null,
-            registration_state: body.state || null,
-            registration_city: body.city || null,
-            registration_college: body.college || null
+            name: body.name,
+            email: body.email,
+            phone: body.phone,
+            state: body.state,
+            qualification: body.qualification,
+            message: body.message
         }]).select().single();
-        
+
         if (regError) return jsonResponse({ error: regError.message }, 500, cors);
-        
         return jsonResponse({ success: true, item: newReg }, 201, cors);
     }
     
