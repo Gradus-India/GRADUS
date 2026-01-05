@@ -22,7 +22,8 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
 );
 
-const JWT_SECRET = Deno.env.get("JWT_SECRET") || "fallback_secret_change_me";
+const JWT_SECRET = Deno.env.get("JWT_SECRET");
+if (!JWT_SECRET) throw new Error("Missing JWT_SECRET");
 
 async function getAuthUser(req: Request) {
   const authHeader = req.headers.get("Authorization");

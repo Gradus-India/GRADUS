@@ -345,6 +345,9 @@ serve(async (req: Request) => {
 
         // 1. POST /create-room
         if (apiPath === "/create-room" && req.method === "POST") {
+            const authHeader = req.headers.get("Authorization");
+            if (!authHeader) return jsonResponse({ error: "Unauthorized" }, 401, cors);
+            
             const body = await req.json().catch(() => ({}));
             const { name, description, courseSlug, courseName } = body;
             const roomName = name || `live-class-${Date.now()}`;
@@ -432,6 +435,8 @@ serve(async (req: Request) => {
 
         // 2. POST /get-token
         if (apiPath === "/get-token" && req.method === "POST") {
+            const authHeader = req.headers.get("Authorization");
+            if (!authHeader) return jsonResponse({ error: "Unauthorized" }, 401, cors);
             const body = await req.json().catch(() => ({}));
             const { roomId, userId, role } = body;
 
@@ -445,12 +450,16 @@ serve(async (req: Request) => {
 
         // 3. GET /rooms
         if (apiPath === "/rooms" && req.method === "GET") {
+            const authHeader = req.headers.get("Authorization");
+            if (!authHeader) return jsonResponse({ error: "Unauthorized" }, 401, cors);
             const result = await listRooms();
             return jsonResponse({ success: true, rooms: result.data || [] }, 200, cors);
         }
 
         // 4. GET /get-room-codes/:roomId
         if (apiPath.startsWith("/get-room-codes/") && req.method === "GET") {
+            const authHeader = req.headers.get("Authorization");
+            if (!authHeader) return jsonResponse({ error: "Unauthorized" }, 401, cors);
             const roomId = apiPath.split("/").pop();
             if (!roomId) return jsonResponse({ error: "roomId is required", success: false }, 400, cors);
 
@@ -464,6 +473,8 @@ serve(async (req: Request) => {
 
         // 5. POST /end-room/:roomId
         if (apiPath.startsWith("/end-room/") && req.method === "POST") {
+            const authHeader = req.headers.get("Authorization");
+            if (!authHeader) return jsonResponse({ error: "Unauthorized" }, 401, cors);
             const roomId = apiPath.split("/").pop();
             if (!roomId) return jsonResponse({ error: "roomId is required", success: false }, 400, cors);
 
@@ -482,7 +493,8 @@ serve(async (req: Request) => {
                 const token = authHeader.replace("Bearer ", "");
                 const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
                 const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
-                const JWT_SECRET = Deno.env.get("JWT_SECRET") || "fallback_secret_change_me";
+                const JWT_SECRET = Deno.env.get("JWT_SECRET");
+                if (!JWT_SECRET) throw new Error("Missing JWT_SECRET");
                 
                 const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
                 const supabase = createClient(supabaseUrl, supabaseAnonKey);

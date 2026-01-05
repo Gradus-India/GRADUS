@@ -56,7 +56,10 @@ serve(async (req: Request) => {
         userId = user.id;
       } else {
         // Fallback to custom JWT
-        const JWT_SECRET = Deno.env.get("JWT_SECRET") || "fallback_secret_change_me";
+        const JWT_SECRET = Deno.env.get("JWT_SECRET");
+        if (!JWT_SECRET) {
+            throw new Error("Missing JWT_SECRET environment variable");
+        }
         const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(JWT_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
         const payload = await verify(token, key) as any;
         userId = payload.id || payload.sub;
@@ -87,7 +90,7 @@ serve(async (req: Request) => {
     const GST_RATE = Number(Deno.env.get("RAZORPAY_GST_RATE") || 0.18);
 
     if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
-      throw new Error("Razorpay not configured");
+      throw new Error("Razorpay credentials are not configured in environment variables");
     }
 
     // --- Action: Create Order ---

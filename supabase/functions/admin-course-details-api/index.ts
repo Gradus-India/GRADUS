@@ -26,7 +26,8 @@ function jsonResponse(data: any, status = 200, cors: any) {
   });
 }
 
-const JWT_SECRET = Deno.env.get("JWT_SECRET") || "fallback_secret_change_me";
+const JWT_SECRET = Deno.env.get("JWT_SECRET");
+if (!JWT_SECRET) throw new Error("Missing JWT_SECRET");
 const CLOUD_NAME = Deno.env.get("CLOUDINARY_CLOUD_NAME") || "";
 const API_KEY = Deno.env.get("CLOUDINARY_API_KEY") || "";
 const API_SECRET = Deno.env.get("CLOUDINARY_API_SECRET") || "";

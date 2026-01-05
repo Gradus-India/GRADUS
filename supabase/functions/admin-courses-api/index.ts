@@ -44,7 +44,8 @@ function ensureArray(value: any): any[] {
 // JWT Verification
 // ============================================================================
 
-const JWT_SECRET = Deno.env.get("JWT_SECRET") || "fallback_secret_change_me";
+const JWT_SECRET = Deno.env.get("JWT_SECRET");
+if (!JWT_SECRET) throw new Error("Missing JWT_SECRET");
 
 async function getJwtKey(): Promise<CryptoKey> {
   const encoder = new TextEncoder();

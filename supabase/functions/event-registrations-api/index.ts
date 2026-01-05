@@ -33,7 +33,8 @@ function jsonResponse(data: any, status = 200, cors: any) {
   });
 }
 
-const JWT_SECRET = Deno.env.get("JWT_SECRET") || "fallback_secret_change_me";
+const JWT_SECRET = Deno.env.get("JWT_SECRET");
+if (!JWT_SECRET) throw new Error("Missing JWT_SECRET");
 
 async function verifyAdminToken(req: Request, supabase: SupabaseClient): Promise<{ admin: any; error?: string }> {
   const authHeader = req.headers.get("Authorization");
