@@ -105,7 +105,7 @@ const TestimonialsPage = () => {
 
   return (
     <MasterLayout>
-      <Breadcrumb title='Testimonials (Cloudinary Videos)' />
+      <Breadcrumb title='Testimonials (Supabase Storage)' />
 
       <div className='row gy-4'>
         <div className='col-xxl-5'>

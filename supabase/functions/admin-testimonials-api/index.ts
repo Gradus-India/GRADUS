@@ -1,7 +1,6 @@
-/// <reference lib="deno.ns" />
 /**
  * Admin Testimonials API Edge Function
- * Handles testimonial CRUD with Cloudinary image uploads
+ * Handles testimonial CRUD with Supabase Storage uploads
  */
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -93,72 +92,38 @@ async function verifyAdminToken(req: Request, supabase: SupabaseClient): Promise
 }
 
 // ============================================================================
-// Cloudinary Helper
+// Supabase Storage Helper
 // ============================================================================
 
-const CLOUD_NAME = Deno.env.get("CLOUDINARY_CLOUD_NAME") || "";
-const API_KEY = Deno.env.get("CLOUDINARY_API_KEY") || "";
-const API_SECRET = Deno.env.get("CLOUDINARY_API_SECRET") || "";
-const TESTIMONIAL_FOLDER = "gradus/testimonials";
+const TESTIMONIALS_BUCKET = "testimonials";
 
-async function generateSignature(params: Record<string, string>, secret: string) {
-  const keys = Object.keys(params).sort();
-  const signString = keys.map((key) => `${key}=${params[key]}`).join("&") + secret;
-  
-  const encoder = new TextEncoder();
-  const data = encoder.encode(signString);
-  const hash = await crypto.subtle.digest("SHA-1", data);
-  const hashArray = Array.from(new Uint8Array(hash));
-  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-}
+async function uploadToStorage(supabase: SupabaseClient, file: File, folder: string) {
+  const timestamp = Date.now();
+  const fileExt = file.name.split('.').pop() || 'tmp';
+  const fileName = `${folder}/${timestamp}-${Math.random().toString(36).substring(7)}.${fileExt}`;
 
-async function uploadToCloudinary(file: File, folder: string = TESTIMONIAL_FOLDER) {
-  const timestamp = Math.round(Date.now() / 1000).toString();
-  const paramsToSign: Record<string, string> = { timestamp, folder };
-  const signature = await generateSignature(paramsToSign, API_SECRET);
-
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("api_key", API_KEY);
-  formData.append("timestamp", timestamp);
-  formData.append("signature", signature);
-  formData.append("folder", folder);
-
-  const resourceType = file.type.startsWith("video") ? "video" : "image";
-  
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`, {
-    method: "POST",
-    body: formData
-  });
-
-  if (!response.ok) {
-    throw new Error(`Cloudinary upload failed`);
-  }
-
-  return await response.json();
-}
-
-async function deleteFromCloudinary(publicId: string) {
-  if (!publicId) return;
-  
-  const timestamp = Math.round(Date.now() / 1000).toString();
-  const paramsToSign: Record<string, string> = { public_id: publicId, timestamp };
-  const signature = await generateSignature(paramsToSign, API_SECRET);
-
-  const formData = new FormData();
-  formData.append("public_id", publicId);
-  formData.append("api_key", API_KEY);
-  formData.append("timestamp", timestamp);
-  formData.append("signature", signature);
-
-  try {
-    await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/destroy`, {
-      method: "POST",
-      body: formData
+  const { data, error } = await supabase.storage
+    .from(TESTIMONIALS_BUCKET)
+    .upload(fileName, file, {
+      contentType: file.type,
+      upsert: false
     });
-  } catch (e) {
-    console.error("Cloudinary delete error:", e);
-  }
+
+  if (error) throw error;
+
+  const { data: { publicUrl } } = supabase.storage
+    .from(TESTIMONIALS_BUCKET)
+    .getPublicUrl(fileName);
+
+  return { publicUrl, path: fileName };
+}
+
+async function deleteFromStorage(supabase: SupabaseClient, path: string) {
+  if (!path) return;
+  const { error } = await supabase.storage
+    .from(TESTIMONIALS_BUCKET)
+    .remove([path]);
+  if (error) console.error("Storage delete error:", error);
 }
 
 // ============================================================================
@@ -175,11 +140,15 @@ function mapTestimonial(doc: any) {
     rating: doc.rating || 5,
     imageUrl: doc.image_url || "",
     videoUrl: doc.video_url || "",
-    publicId: doc.public_id || "",
+    publicId: doc.public_id || "", // This stores "video_path|thumbnail_path"
     featured: Boolean(doc.featured),
     order: doc.sort_order || 0,
     createdAt: doc.created_at,
     updatedAt: doc.updated_at,
+    // Add legacy support for frontend expectations if any
+    secureUrl: doc.video_url || "",
+    thumbnailUrl: doc.image_url || "",
+    active: Boolean(doc.featured), // Assuming active maps to featured or similar
   };
 }
 
@@ -237,7 +206,8 @@ serve(async (req: Request) => {
     if ((apiPath === "/" || apiPath === "") && req.method === "POST") {
       const contentType = req.headers.get("content-type") || "";
       let payload: any = {};
-      let imageFile: File | null = null;
+      let videoFile: File | null = null;
+      let thumbnailFile: File | null = null;
 
       if (contentType.includes("multipart/form-data")) {
         const formData = await req.formData();
@@ -247,11 +217,11 @@ serve(async (req: Request) => {
           company: formData.get("company") as string,
           quote: formData.get("quote") as string,
           rating: Number(formData.get("rating")) || 5,
-          featured: formData.get("featured") === "true",
+          featured: formData.get("active") === "true", // Aligning frontend 'active' with 'featured'
           sort_order: Number(formData.get("order")) || 0,
-          video_url: formData.get("videoUrl") as string,
         };
-        imageFile = formData.get("image") as File;
+        videoFile = formData.get("video") as File;
+        thumbnailFile = formData.get("thumbnail") as File;
       } else {
         const body = await req.json().catch(() => ({}));
         payload = {
@@ -260,17 +230,31 @@ serve(async (req: Request) => {
           company: body.company,
           quote: body.quote,
           rating: body.rating || 5,
-          featured: Boolean(body.featured),
+          featured: Boolean(body.active !== undefined ? body.active : body.featured),
           sort_order: body.order || 0,
           video_url: body.videoUrl,
           image_url: body.imageUrl,
+          public_id: body.publicId,
         };
       }
 
-      if (imageFile && imageFile instanceof File && imageFile.size > 0) {
-        const uploadResult = await uploadToCloudinary(imageFile);
-        payload.image_url = uploadResult.secure_url;
-        payload.public_id = uploadResult.public_id;
+      let videoPath = "";
+      let thumbPath = "";
+
+      if (videoFile && videoFile instanceof File && videoFile.size > 0) {
+        const { publicUrl, path } = await uploadToStorage(supabase, videoFile, "videos");
+        payload.video_url = publicUrl;
+        videoPath = path;
+      }
+
+      if (thumbnailFile && thumbnailFile instanceof File && thumbnailFile.size > 0) {
+        const { publicUrl, path } = await uploadToStorage(supabase, thumbnailFile, "thumbnails");
+        payload.image_url = publicUrl;
+        thumbPath = path;
+      }
+
+      if (videoPath || thumbPath) {
+        payload.public_id = `${videoPath}|${thumbPath}`;
       }
 
       const { data: doc, error } = await supabase
@@ -306,7 +290,8 @@ serve(async (req: Request) => {
 
       const contentType = req.headers.get("content-type") || "";
       let patch: any = {};
-      let imageFile: File | null = null;
+      let videoFile: File | null = null;
+      let thumbnailFile: File | null = null;
 
       if (contentType.includes("multipart/form-data")) {
         const formData = await req.formData();
@@ -315,10 +300,12 @@ serve(async (req: Request) => {
         if (formData.has("company")) patch.company = formData.get("company") as string;
         if (formData.has("quote")) patch.quote = formData.get("quote") as string;
         if (formData.has("rating")) patch.rating = Number(formData.get("rating"));
+        if (formData.has("active")) patch.featured = formData.get("active") === "true";
         if (formData.has("featured")) patch.featured = formData.get("featured") === "true";
         if (formData.has("order")) patch.sort_order = Number(formData.get("order"));
-        if (formData.has("videoUrl")) patch.video_url = formData.get("videoUrl") as string;
-        imageFile = formData.get("image") as File;
+        
+        videoFile = formData.get("video") as File;
+        thumbnailFile = formData.get("thumbnail") as File;
       } else {
         const body = await req.json().catch(() => ({}));
         if (body.name !== undefined) patch.name = body.name;
@@ -326,17 +313,33 @@ serve(async (req: Request) => {
         if (body.company !== undefined) patch.company = body.company;
         if (body.quote !== undefined) patch.quote = body.quote;
         if (body.rating !== undefined) patch.rating = body.rating;
+        if (body.active !== undefined) patch.featured = Boolean(body.active);
         if (body.featured !== undefined) patch.featured = Boolean(body.featured);
         if (body.order !== undefined) patch.sort_order = body.order;
         if (body.videoUrl !== undefined) patch.video_url = body.videoUrl;
         if (body.imageUrl !== undefined) patch.image_url = body.imageUrl;
       }
 
-      if (imageFile && imageFile instanceof File && imageFile.size > 0) {
-        const uploadResult = await uploadToCloudinary(imageFile);
-        patch.image_url = uploadResult.secure_url;
-        patch.public_id = uploadResult.public_id;
-        await deleteFromCloudinary(doc.public_id);
+      const [oldVideoPath, oldThumbPath] = (doc.public_id || "").split("|");
+      let newVideoPath = oldVideoPath || "";
+      let newThumbPath = oldThumbPath || "";
+
+      if (videoFile && videoFile instanceof File && videoFile.size > 0) {
+        if (oldVideoPath) await deleteFromStorage(supabase, oldVideoPath);
+        const { publicUrl, path } = await uploadToStorage(supabase, videoFile, "videos");
+        patch.video_url = publicUrl;
+        newVideoPath = path;
+      }
+
+      if (thumbnailFile && thumbnailFile instanceof File && thumbnailFile.size > 0) {
+        if (oldThumbPath) await deleteFromStorage(supabase, oldThumbPath);
+        const { publicUrl, path } = await uploadToStorage(supabase, thumbnailFile, "thumbnails");
+        patch.image_url = publicUrl;
+        newThumbPath = path;
+      }
+
+      if (newVideoPath !== oldVideoPath || newThumbPath !== oldThumbPath) {
+        patch.public_id = `${newVideoPath}|${newThumbPath}`;
       }
 
       patch.updated_at = new Date().toISOString();
@@ -369,7 +372,9 @@ serve(async (req: Request) => {
         .single();
 
       if (doc?.public_id) {
-        await deleteFromCloudinary(doc.public_id);
+        const [vPath, tPath] = doc.public_id.split("|");
+        if (vPath) await deleteFromStorage(supabase, vPath);
+        if (tPath) await deleteFromStorage(supabase, tPath);
       }
 
       const { error } = await supabase
