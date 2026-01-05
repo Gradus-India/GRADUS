@@ -260,8 +260,8 @@ const RegistrationCard = ({ event }) => {
     if (user) {
       setForm((prev) => ({
         ...prev,
-        // Try multiple variations for name
-        name: user.full_name || user.name || user.user_metadata?.full_name || user.user_metadata?.name || prev.name,
+        // Try multiple variations for name, prioritizing 'fullname' as per schema
+        name: user.fullname || user.full_name || user.name || user.user_metadata?.fullname || user.user_metadata?.full_name || user.user_metadata?.name || prev.name,
         email: user.email || prev.email,
         phone: user.phone || user.whatsapp_number || prev.phone,
         state: user.state || prev.state,
@@ -329,7 +329,7 @@ const RegistrationCard = ({ event }) => {
     // If logged in, we reset to USER data, otherwise empty
     if (user) {
       setForm({
-        name: user.full_name || user.name || user.user_metadata?.full_name || "",
+        name: user.fullname || user.full_name || user.name || user.user_metadata?.fullname || user.user_metadata?.full_name || "",
         email: user.email || "",
         phone: user.phone || user.whatsapp_number || "",
         state: user.state || "",
@@ -419,16 +419,16 @@ const RegistrationCard = ({ event }) => {
           <label className='form-label text-sm fw-semibold'>Name *</label>
           <div className="input-group">
             <input
-              className={`form-control ${user?.name || user?.full_name ? "bg-light text-muted" : ""}`}
+              className={`form-control ${userName ? "bg-light text-muted" : ""}`}
               name='name'
               value={form.name}
               onChange={handleChange}
               placeholder='Enter your full name'
               required
-              readOnly={!!(user?.name || user?.full_name)}
-              title={user ? "Name fetched from your profile" : ""}
+              readOnly={!!userName}
+              title={userName ? "Name fetched from your profile" : ""}
             />
-            {user?.name || user?.full_name ? (
+            {userName ? (
               <span className="input-group-text bg-light border-start-0 text-muted">
                 <i className="ph ph-lock-key"></i>
               </span>
