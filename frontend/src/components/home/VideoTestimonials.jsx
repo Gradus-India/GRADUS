@@ -228,19 +228,18 @@ const VideoTestimonials = () => {
       slidesPerView: "auto",
       spaceBetween: 24,
       navigation: navigationEnabled,
-      loop: count >= 4, // avoid duplicate-first slide when only a couple of reels
-      centeredSlides: false,
+      loop: count >= 5, // Only loop if we have enough clones to fill the view
+      centeredSlides: true,
       touchStartPreventDefault: false, // let touch gestures bubble so swipes register on mobile
       watchOverflow: true,
       initialSlide: 0,
     };
 
     const bp = {
-      0: { slidesPerView: "auto", spaceBetween: 12, navigation: navigationEnabled, centeredSlides: false },
-      576: { slidesPerView: "auto", spaceBetween: 16, navigation: navigationEnabled, centeredSlides: false },
-      768: { slidesPerView: "auto", spaceBetween: 18, navigation: navigationEnabled, centeredSlides: false },
-      992: { slidesPerView: "auto", spaceBetween: 20, navigation: navigationEnabled, centeredSlides: false },
-      1200: { slidesPerView: "auto", spaceBetween: 24, navigation: navigationEnabled, centeredSlides: false },
+      576: { slidesPerView: "auto", spaceBetween: 16, navigation: navigationEnabled, centeredSlides: true },
+      768: { slidesPerView: "auto", spaceBetween: 18, navigation: navigationEnabled, centeredSlides: true },
+      992: { slidesPerView: "auto", spaceBetween: 20, navigation: navigationEnabled, centeredSlides: true },
+      1200: { slidesPerView: "auto", spaceBetween: 24, navigation: navigationEnabled, centeredSlides: true },
     };
 
     return { ...base, breakpoints: bp };
@@ -269,6 +268,7 @@ const VideoTestimonials = () => {
             </div>
           ) : (
             <Swiper
+              key={items.length}
               {...sliderSettings}
               className="video-reels-slider video-reels-swiper"
               onSlideChange={stopAll}
