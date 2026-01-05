@@ -240,10 +240,10 @@ const VideoTestimonials = () => {
 
     const bp = {
       0: { slidesPerView: 1.2, spaceBetween: 16, centeredSlides: true },
-      576: { slidesPerView: 2.2, spaceBetween: 16, centeredSlides: true },
-      768: { slidesPerView: 2.8, spaceBetween: 18, centeredSlides: true },
-      992: { slidesPerView: 3.5, spaceBetween: 20, centeredSlides: true },
-      1200: { slidesPerView: 4.2, spaceBetween: 24, centeredSlides: true },
+      576: { slidesPerView: 1.8, spaceBetween: 16, centeredSlides: true },
+      768: { slidesPerView: 2.2, spaceBetween: 18, centeredSlides: true },
+      992: { slidesPerView: 3.2, spaceBetween: 20, centeredSlides: true },
+      1200: { slidesPerView: 3.8, spaceBetween: 24, centeredSlides: true },
     };
 
     return { ...base, breakpoints: bp };
@@ -279,7 +279,6 @@ const VideoTestimonials = () => {
             >
               {items.map((item, idx) => {
                 const key = String(item.id ?? idx);
-                console.log(`Rendering slide ${idx} with key: ${key}`);
                 const isActive = activeId === key;
                 const poster = item.thumbnailUrl || undefined;
                 const altText = item.name ? `${item.name}'s testimonial` : "Student testimonial";
