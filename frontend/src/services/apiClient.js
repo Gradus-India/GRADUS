@@ -190,6 +190,9 @@ const request = async (path, options = {}) => {
     } else if (p.startsWith("/landing-page-registrations")) {
       // Explicitly route to new dedicated function
       finalUrl = `${edgeBaseUrl}/landing-page-registration`;
+    } else if (p.startsWith("/event-registrations")) {
+      const subPath = p.replace(/^\/event-registrations/, "");
+      finalUrl = `${edgeBaseUrl}/event-registrations-api${subPath}`;
     } else if (
       p.startsWith("/banners") ||
       p.startsWith("/why-gradus-video") ||
@@ -197,7 +200,6 @@ const request = async (path, options = {}) => {
       p.startsWith("/testimonials") ||
       p.startsWith("/expert-videos") ||
       p.startsWith("/inquiries") ||
-      p.startsWith("/event-registrations") ||
       p.startsWith("/gallery") ||
       p.startsWith("/landing-pages")
     ) {
