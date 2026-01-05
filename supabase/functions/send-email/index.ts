@@ -109,13 +109,12 @@ serve(async (req: Request) => {
   // Manual Auth Check (Bypassing platform verify_jwt which was failing)
   const authHeader = req.headers.get("Authorization");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   
-  // Allow if it matches Service Key or Anon Key
-  const isValid = authHeader === `Bearer ${serviceKey}` || authHeader === `Bearer ${anonKey}`;
+  // Allow only Service Key (Internal use only)
+  const isValid = authHeader === `Bearer ${serviceKey}`;
   
   if (!isValid) {
-     return new Response(JSON.stringify({ error: "Unauthorized: Invalid API Key" }), { status: 401, headers: cors as any });
+     return new Response(JSON.stringify({ error: "Unauthorized: Service Key Required" }), { status: 401, headers: cors as any });
   }
 
   try {
