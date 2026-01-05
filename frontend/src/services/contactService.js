@@ -1,4 +1,4 @@
-import apiClient from './apiClient';
+import apiClient from "./apiClient";
 
 export const submitContactInquiry = async ({
   name,
@@ -28,7 +28,7 @@ export const submitContactInquiry = async ({
     payload.eventDetails = eventDetails;
   }
 
-  return apiClient.post('/inquiries', payload);
+  return apiClient.post("/inquiries", payload);
 };
 
 export const submitEventRegistration = async ({
@@ -37,6 +37,8 @@ export const submitEventRegistration = async ({
   phone,
   state,
   qualification,
+  city,
+  college,
   course,
   message,
   eventDetails,
@@ -48,13 +50,15 @@ export const submitEventRegistration = async ({
     phone,
     state,
     qualification,
+    city,
+    college,
     course,
     message,
     eventDetails,
     consent,
   };
 
-  return apiClient.post('/event-registrations', payload);
+  return apiClient.post("/event-registrations", payload);
 };
 
 export default {

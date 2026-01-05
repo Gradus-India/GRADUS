@@ -139,19 +139,22 @@ Deno.serve(async (req) => {
         const { user } = await verifyUser(req, supabase);
         const userId = user?.id || null;
 
-        if (!body.eventSlug && !body.eventId) {
+        const eventIdFromPayload = body.eventId || body.eventDetails?.id;
+        const eventSlugFromPayload = body.eventSlug || body.eventDetails?.slug;
+
+        if (!eventSlugFromPayload && !eventIdFromPayload) {
              return jsonResponse({ error: "Event ID or Slug required" }, 400, cors);
         }
 
-        let eventId = body.eventId;
+        let eventId = eventIdFromPayload;
         let isMasterclass = false;
 
         // Fetch Event Details to check Masterclass status
         if (eventId) {
             const { data: event } = await supabase.from("events").select("id, is_masterclass").eq("id", eventId).single();
             if (event) isMasterclass = event.is_masterclass;
-        } else if (body.eventSlug) {
-             const { data: event } = await supabase.from("events").select("id, is_masterclass").eq("slug", body.eventSlug).single();
+        } else if (eventSlugFromPayload) {
+             const { data: event } = await supabase.from("events").select("id, is_masterclass").eq("slug", eventSlugFromPayload).single();
              if (!event) return jsonResponse({ error: "Event not found" }, 404, cors);
              eventId = event.id;
              isMasterclass = event.is_masterclass;
