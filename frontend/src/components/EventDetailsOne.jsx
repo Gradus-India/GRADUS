@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { submitEventRegistration } from "../services/contactService";
+import { submitEventRegistration, checkEventRegistration } from "../services/contactService";
 import { useAuth } from "../context/AuthContext";
 
 const STATE_OPTIONS = [
@@ -254,6 +254,33 @@ const RegistrationCard = ({ event }) => {
   });
   const [status, setStatus] = useState({ submitting: false, success: false, error: null });
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [isRegistered, setIsRegistered] = useState(false);
+  const [checkingRegistration, setCheckingRegistration] = useState(false);
+
+  // Check if user is already registered for this event
+  useEffect(() => {
+    const checkStatus = async () => {
+      if (!user || !token || !event) return;
+
+      try {
+        setCheckingRegistration(true);
+        const res = await checkEventRegistration({
+          eventId: event.id || event._id,
+          eventSlug: event.slug,
+          token
+        });
+        if (res?.registered) {
+          setIsRegistered(true);
+        }
+      } catch (err) {
+        console.error("[EventDetails] Failed to check registration status:", err);
+      } finally {
+        setCheckingRegistration(false);
+      }
+    };
+
+    checkStatus();
+  }, [user, token, event?.id, event?._id, event?.slug]);
 
   // Auto-fill form and prevent editing if logged in
   useEffect(() => {
@@ -421,7 +448,7 @@ const RegistrationCard = ({ event }) => {
         </span>
       </div>
       <form className='event-register-card__form' id='event-register-form' onSubmit={handleSubmit}>
-        <fieldset disabled={isPast} className='border-0 p-0 m-0'>
+        <fieldset disabled={isPast || isRegistered} className='border-0 p-0 m-0'>
           <label className='form-label text-sm fw-semibold'>Name *</label>
           <div className="input-group">
             <input
@@ -461,132 +488,144 @@ const RegistrationCard = ({ event }) => {
             ) : null}
           </div>
 
-          <label className='form-label text-sm fw-semibold mt-16'>Phone *</label>
-          <div className="input-group">
-            <input
-              className={`form-control ${user?.phone || user?.whatsapp_number ? "bg-light text-muted" : ""}`}
-              name='phone'
-              value={form.phone}
-              onChange={handleChange}
-              placeholder='WhatsApp number'
-              required
-              readOnly={!!(user?.phone || user?.whatsapp_number)}
-              title={user ? "Phone fetched from your profile" : ""}
-            />
-            {user?.phone || user?.whatsapp_number ? (
-              <span className="input-group-text bg-light border-start-0 text-muted">
-                <i className="ph ph-lock-key"></i>
-              </span>
-            ) : null}
-          </div>
-
-          <label className='form-label text-sm fw-semibold mt-16'>State *</label>
-          <select
-            className='form-select'
-            name='state'
-            value={form.state}
-            onChange={handleChange}
-            required
-            disabled={!!user?.state} // Disable if fetched
-          >
-            <option value=''>Select state</option>
-            {STATE_OPTIONS.map((stateName) => (
-              <option key={stateName} value={stateName}>
-                {stateName}
-              </option>
-            ))}
-          </select>
-
-          {/* Conditional Fields: Masterclass uses City/College; Others use Qualification */}
-          {isMasterclass ? (
-            <>
-              <label className='form-label text-sm fw-semibold mt-16'>City *</label>
-              <input
-                className='form-control'
-                name='city'
-                value={form.city}
-                onChange={handleChange}
-                placeholder='Enter your city'
-                required
-                readOnly={!!user?.city}
-              />
-
-              <label className='form-label text-sm fw-semibold mt-16'>College / Organization *</label>
-              <input
-                className='form-control'
-                name='college'
-                value={form.college}
-                onChange={handleChange}
-                placeholder='Enter your college or company'
-                required
-                readOnly={!!user?.college}
-              />
-            </>
+          {isRegistered ? (
+            <div className="alert alert-success mt-24 mb-0 d-flex align-items-center gap-3 border-0 bg-success-50 text-success-700">
+              <i className="ph ph-check-circle" style={{ fontSize: '28px' }}></i>
+              <div>
+                <p className="mb-0 fw-bold">You are registered!</p>
+                <p className="mb-0 text-xs opacity-75">You've already secured your spot for this event. See you there!</p>
+              </div>
+            </div>
           ) : (
             <>
-              <label className='form-label text-sm fw-semibold mt-16'>Qualification *</label>
+              <label className='form-label text-sm fw-semibold mt-16'>Phone *</label>
+              <div className="input-group">
+                <input
+                  className={`form-control ${user?.phone || user?.whatsapp_number ? "bg-light text-muted" : ""}`}
+                  name='phone'
+                  value={form.phone}
+                  onChange={handleChange}
+                  placeholder='WhatsApp number'
+                  required
+                  readOnly={!!(user?.phone || user?.whatsapp_number)}
+                  title={user ? "Phone fetched from your profile" : ""}
+                />
+                {user?.phone || user?.whatsapp_number ? (
+                  <span className="input-group-text bg-light border-start-0 text-muted">
+                    <i className="ph ph-lock-key"></i>
+                  </span>
+                ) : null}
+              </div>
+
+              <label className='form-label text-sm fw-semibold mt-16'>State *</label>
               <select
                 className='form-select'
-                name='qualification'
-                value={form.qualification}
+                name='state'
+                value={form.state}
                 onChange={handleChange}
                 required
-                disabled={!!user?.qualification}
+                disabled={!!user?.state} // Disable if fetched
               >
-                <option value=''>Select qualification</option>
-                {QUALIFICATION_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
+                <option value=''>Select state</option>
+                {STATE_OPTIONS.map((stateName) => (
+                  <option key={stateName} value={stateName}>
+                    {stateName}
                   </option>
                 ))}
               </select>
+
+              {/* Conditional Fields: Masterclass uses City/College; Others use Qualification */}
+              {isMasterclass ? (
+                <>
+                  <label className='form-label text-sm fw-semibold mt-16'>City *</label>
+                  <input
+                    className='form-control'
+                    name='city'
+                    value={form.city}
+                    onChange={handleChange}
+                    placeholder='Enter your city'
+                    required
+                    readOnly={!!user?.city}
+                  />
+
+                  <label className='form-label text-sm fw-semibold mt-16'>College / Organization *</label>
+                  <input
+                    className='form-control'
+                    name='college'
+                    value={form.college}
+                    onChange={handleChange}
+                    placeholder='Enter your college or company'
+                    required
+                    readOnly={!!user?.college}
+                  />
+                </>
+              ) : (
+                <>
+                  <label className='form-label text-sm fw-semibold mt-16'>Qualification *</label>
+                  <select
+                    className='form-select'
+                    name='qualification'
+                    value={form.qualification}
+                    onChange={handleChange}
+                    required
+                    disabled={!!user?.qualification}
+                  >
+                    <option value=''>Select qualification</option>
+                    {QUALIFICATION_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
+              <div className='form-check event-register-card__consent mt-16'>
+                <input
+                  className='form-check-input'
+                  type='checkbox'
+                  id='event-consent'
+                  name='consent'
+                  checked={form.consent}
+                  onChange={handleChange}
+                  required
+                />
+                <label className='form-check-label text-sm text-neutral-700' htmlFor='event-consent'>
+                  I authorize Gradus Team to reach out to me with updates and notifications via
+                  Email, SMS, WhatsApp and RCS.
+                </label>
+              </div>
+              {isPast ? (
+                <button type='button' className='btn btn-outline-secondary w-100 rounded-pill mt-20' disabled>
+                  Registration Closed
+                </button>
+              ) : liveWindow && joinUrl ? (
+                <button
+                  type='button'
+                  className='btn btn-main w-100 rounded-pill mt-20'
+                  onClick={handleJoinNow}
+                  disabled={status.submitting}
+                >
+                  {status.submitting ? "Please wait..." : "Join now"}
+                </button>
+              ) : (
+                <button
+                  type='submit'
+                  className='btn btn-main w-100 rounded-pill mt-20'
+                  disabled={status.submitting}
+                >
+                  {status.submitting ? "Registering..." : "Register for free"}
+                </button>
+              )}
+              {status.success ? (
+                <p className='text-success-600 text-sm mt-12 mb-0'>
+                  You’re in! Our team will reach out with joining details.
+                </p>
+              ) : null}
+              {status.error ? (
+                <p className='text-danger text-sm mt-12 mb-0'>{status.error}</p>
+              ) : null}
             </>
           )}
-          <div className='form-check event-register-card__consent mt-16'>
-            <input
-              className='form-check-input'
-              type='checkbox'
-              id='event-consent'
-              name='consent'
-              checked={form.consent}
-              onChange={handleChange}
-              required
-            />
-            <label className='form-check-label text-sm text-neutral-700' htmlFor='event-consent'>
-              I authorize Gradus Team to reach out to me with updates and notifications via
-              Email, SMS, WhatsApp and RCS.
-            </label>
-          </div>
-          {isPast ? (
-            <button type='button' className='btn btn-outline-secondary w-100 rounded-pill mt-20' disabled>
-              Registration Closed
-            </button>
-          ) : liveWindow && joinUrl ? (
-            <button
-              type='button'
-              className='btn btn-main w-100 rounded-pill mt-20'
-              onClick={handleJoinNow}
-              disabled={status.submitting}
-            >
-              {status.submitting ? "Please wait..." : "Join now"}
-            </button>
-          ) : (
-            <button
-              type='submit'
-              className='btn btn-main w-100 rounded-pill mt-20'
-              disabled={status.submitting}
-            >
-              {status.submitting ? "Registering..." : "Register for free"}
-            </button>
-          )}
-          {status.success ? (
-            <p className='text-success-600 text-sm mt-12 mb-0'>
-              You’re in! Our team will reach out with joining details.
-            </p>
-          ) : null}
-          {status.error ? (
-            <p className='text-danger text-sm mt-12 mb-0'>{status.error}</p>
-          ) : null}
         </fieldset>
       </form>
       <p className='event-register-card__foot text-sm text-neutral-500'>

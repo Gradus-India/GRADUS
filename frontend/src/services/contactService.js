@@ -62,7 +62,18 @@ export const submitEventRegistration = async ({
   return apiClient.post("/event-registrations", payload, { token });
 };
 
+export const checkEventRegistration = async ({ eventId, eventSlug, token }) => {
+  const params = new URLSearchParams();
+  if (eventId) params.append("eventId", eventId);
+  if (eventSlug) params.append("eventSlug", eventSlug);
+
+  return apiClient.get(`/event-registrations/check?${params.toString()}`, {
+    token,
+  });
+};
+
 export default {
   submitContactInquiry,
   submitEventRegistration,
+  checkEventRegistration,
 };

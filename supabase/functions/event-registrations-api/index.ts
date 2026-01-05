@@ -112,6 +112,49 @@ Deno.serve(async (req) => {
     const funcIndex = pathParts.indexOf("event-registrations-api");
     const apiPath = "/" + pathParts.slice(funcIndex + 1).join("/");
 
+    // GET /check - Check if user is already registered for an event
+    if (apiPath.startsWith("/check") && req.method === "GET") {
+        const { user: identifiedUser } = await verifyUser(req, supabase);
+        if (!identifiedUser) {
+            return jsonResponse({ registered: false }, 200, cors);
+        }
+
+        const eventId = url.searchParams.get("eventId");
+        const eventSlug = url.searchParams.get("eventSlug");
+
+        if (!eventId && !eventSlug) {
+            return jsonResponse({ error: "eventId or eventSlug required" }, 400, cors);
+        }
+
+        let finalEventId = eventId;
+        if (!finalEventId && eventSlug) {
+            const { data: event } = await supabase.from("events").select("id").eq("slug", eventSlug).single();
+            if (event) finalEventId = event.id;
+        }
+
+        if (!finalEventId) {
+            return jsonResponse({ error: "Event not found" }, 404, cors);
+        }
+
+        // Check Masterclass registrations
+        const { data: mcEntry } = await supabase.from("masterclass_registrations")
+            .select("id")
+            .eq("event_id", finalEventId)
+            .eq("user_id", identifiedUser.id)
+            .maybeSingle();
+
+        if (mcEntry) return jsonResponse({ registered: true }, 200, cors);
+
+        // Check standard registrations
+        const { data: stdEntry } = await supabase.from("event_registrations")
+            .select("id")
+            .eq("event_id", finalEventId)
+            .eq("user_id", identifiedUser.id)
+            .maybeSingle();
+
+        return jsonResponse({ registered: !!stdEntry }, 200, cors);
+    }
+
     // GET / - Admin List OR User's Own Registrations
     if ((apiPath === "/" || apiPath === "") && req.method === "GET") {
         // 1. Try Admin
