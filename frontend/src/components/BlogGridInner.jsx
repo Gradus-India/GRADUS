@@ -34,6 +34,10 @@ const BlogGridInner = () => {
         if (category) {
           params.append("category", category);
         }
+        const sortParam = searchParams.get("sort");
+        if (sortParam) {
+          params.append("sort", sortParam);
+        }
 
         const { items } = await apiClient.get(`/blogs?${params.toString()}`);
         if (!isMounted) {

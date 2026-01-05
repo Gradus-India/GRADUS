@@ -13,7 +13,7 @@ import { verify } from "https://deno.land/x/djwt@v2.8/mod.ts";
 
 function getCorsHeaders(req: Request) {
   const origin = req.headers.get("Origin") || req.headers.get("origin");
-  const allowedOrigin = origin || "http://localhost:5173"; 
+  const allowedOrigin = origin || "http://localhost:5173";
 
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
@@ -62,14 +62,14 @@ async function verifyAdminToken(req: Request, supabase: SupabaseClient): Promise
   }
 
   const token = authHeader.split(" ")[1];
-  
+
   const { data: supabaseUser } = await supabase.auth.getUser(token);
-  
+
   if (supabaseUser?.user) {
     const { data: adminData } = await supabase.from("admin_users").select("*").eq("supabase_id", supabaseUser.user.id).single();
     if (adminData) return { admin: adminData };
   }
-  
+
   const payload = await verifyJwt(token);
   if (payload?.sub) {
     const { data: adminData } = await supabase.from("admin_users").select("*").eq("id", payload.sub).single();
@@ -121,7 +121,7 @@ async function uploadToCloudinary(file: File, folder: string = BLOG_FOLDER) {
 
 async function deleteFromCloudinary(publicId: string) {
   if (!publicId) return;
-  
+
   const timestamp = Math.round(Date.now() / 1000).toString();
   const paramsToSign: Record<string, string> = { public_id: publicId, timestamp };
   const signature = await generateSignature(paramsToSign, API_SECRET);
@@ -179,7 +179,7 @@ function normalizeTags(input: any): string[] {
 async function buildUniqueSlug(title: string, currentId: string | null, supabase: any): Promise<string> {
   const baseSlug = slugify(title);
   if (!baseSlug) throw new Error("Unable to generate slug from title");
-  
+
   let uniqueSlug = baseSlug;
   let suffix = 1;
 
@@ -230,7 +230,7 @@ serve(async (req: Request) => {
     const url = new URL(req.url);
     const path = url.pathname.replace(/\/$/, "");
     const pathParts = path.split("/").filter(Boolean);
-    
+
     const funcIndex = pathParts.indexOf("admin-blogs-api");
     const apiPath = "/" + pathParts.slice(funcIndex + 1).join("/");
 
@@ -250,12 +250,20 @@ serve(async (req: Request) => {
       let query = supabase.from("blogs").select("*");
       if (search) query = query.ilike("title", `%${search}%`);
       if (category) query = query.ilike("category", category);
+      // Fetch with initial order by created_at for performance
       query = query.order("created_at", { ascending: false });
 
       const { data: blogs, error } = await query;
       if (error) return jsonResponse({ error: error.message }, 500, cors);
 
-      return jsonResponse({ items: (blogs || []).map(mapBlog) }, 200, cors);
+      // Sort by published_at if available, otherwise created_at (newest first)
+      const sortedBlogs = (blogs || []).sort((a, b) => {
+        const dateA = new Date(a.published_at || a.created_at).getTime();
+        const dateB = new Date(b.published_at || b.created_at).getTime();
+        return dateB - dateA; // Descending (newest first)
+      });
+
+      return jsonResponse({ items: sortedBlogs.map(mapBlog) }, 200, cors);
     }
 
     // ========================================================================
@@ -312,8 +320,7 @@ serve(async (req: Request) => {
         featured_image_public_id: featuredImagePublicId,
         author: author?.trim() || null,
         tags: normalizeTags(tags),
-        published_at: publishedAt ? new Date(publishedAt).toISOString() : null,
-        meta: { views: 0, comments: 0 },
+        published_at: publishedAt ? new Date(publishedAt).toISOString() : new Date().toISOString(),
       }]).select().single();
 
       if (error) return jsonResponse({ error: error.message }, 500, cors);
@@ -400,7 +407,7 @@ serve(async (req: Request) => {
         featured_image_public_id: featuredImagePublicId,
         author: author?.trim() || null,
         tags: normalizeTags(tags),
-        published_at: publishedAt ? new Date(publishedAt).toISOString() : null,
+        published_at: publishedAt ? new Date(publishedAt).toISOString() : (existing.published_at || new Date().toISOString()),
       }).eq("id", existing.id).select().single();
 
       if (error) return jsonResponse({ error: error.message }, 500, cors);
@@ -417,10 +424,10 @@ serve(async (req: Request) => {
       if (existing?.featured_image_public_id) {
         await deleteFromCloudinary(existing.featured_image_public_id);
       }
-      
+
       // Delete comments first
       await supabase.from("blog_comments").delete().eq("blog_id", blogId);
-      
+
       const { error } = await supabase.from("blogs").delete().eq("id", blogId);
       if (error) return jsonResponse({ error: error.message }, 500, cors);
       return jsonResponse({ message: "Deleted" }, 200, cors);
@@ -480,7 +487,7 @@ serve(async (req: Request) => {
 
       // Delete comment and its replies recursively
       const { data: allComments } = await supabase.from("blog_comments").select("id, parent_comment_id").eq("blog_id", blogId);
-      
+
       const childrenMap = new Map<string, string[]>();
       (allComments || []).forEach((c: any) => {
         const pid = c.parent_comment_id;
@@ -497,7 +504,7 @@ serve(async (req: Request) => {
 
       const idsToDelete = collectIds(commentId);
       const { error } = await supabase.from("blog_comments").delete().in("id", idsToDelete);
-      
+
       if (error) return jsonResponse({ error: error.message }, 500, cors);
 
       // Update comment count

@@ -36,14 +36,77 @@ serve(async (req) => {
     if (req.method === "POST") {
       const { name, email, phone, state, qualification, program_name, landing_page_id, mentor_name, date, time, key_benefit } = await req.json();
 
+      // Validate phone number: must be exactly 10 digits (after removing +91 prefix if present)
+      const phoneDigits = phone.replace(/\D/g, "").replace(/^91/, ""); // Remove country code if present
+      if (phoneDigits.length !== 10) {
+        let errorMessage = "Please enter a valid 10-digit phone number.";
+        if (phoneDigits.length > 0 && phoneDigits.length < 10) {
+          errorMessage = `Your phone number seems incomplete. Please enter all 10 digits (you've entered ${phoneDigits.length} digit${phoneDigits.length > 1 ? 's' : ''}).`;
+        }
+        return new Response(JSON.stringify({ error: errorMessage }), {
+          headers: { ...cors, "Content-Type": "application/json" },
+          status: 400,
+        });
+      }
+
+      // Normalize phone number for comparison (store with +91 prefix)
+      const normalizedPhone = phone.startsWith("+") ? phone : `+91${phoneDigits}`;
+
+      // Check for duplicate registration: same email OR same phone for the same landing_page_id
+      // Fetch all registrations for this landing page to check both email and phone
+      const { data: existingRegistrations, error: checkError } = await supabase
+        .from("landing_page_registrations")
+        .select("id, email, phone")
+        .eq("landing_page_id", landing_page_id);
+
+      if (checkError) {
+        console.error("Error checking existing registrations:", checkError);
+        return new Response(JSON.stringify({ error: "We're having trouble processing your registration. Please try again in a moment." }), {
+          headers: { ...cors, "Content-Type": "application/json" },
+          status: 500,
+        });
+      }
+
+      // Normalize function for phone comparison
+      const normalizePhoneForComparison = (phoneStr: string): string => {
+        if (!phoneStr) return "";
+        // Extract only digits and remove country code if present
+        const digits = phoneStr.replace(/\D/g, "").replace(/^91/, "");
+        return digits.length === 10 ? `+91${digits}` : phoneStr;
+      };
+
+      // Check if email or phone already exists for this masterclass
+      if (existingRegistrations && existingRegistrations.length > 0) {
+        const normalizedEmail = email.toLowerCase().trim();
+        
+        for (const existing of existingRegistrations) {
+          // Check email match
+          if (existing.email?.toLowerCase().trim() === normalizedEmail) {
+            return new Response(JSON.stringify({ error: "You're already registered! This email address has already been used to register for this masterclass. Check your inbox for the confirmation email." }), {
+              headers: { ...cors, "Content-Type": "application/json" },
+              status: 400,
+            });
+          }
+          
+          // Check phone match (normalize both for comparison)
+          const existingPhoneNormalized = normalizePhoneForComparison(existing.phone || "");
+          if (existingPhoneNormalized === normalizedPhone) {
+            return new Response(JSON.stringify({ error: "You're already registered! This phone number has already been used to register for this masterclass. Check your email for the confirmation." }), {
+              headers: { ...cors, "Content-Type": "application/json" },
+              status: 400,
+            });
+          }
+        }
+      }
+
       // Insert registration data
       const { data, error: insertError } = await supabase
         .from("landing_page_registrations")
         .insert([
           {
             name,
-            email,
-            phone,
+            email: email.toLowerCase().trim(),
+            phone: normalizedPhone,
             state,
             qualification,
             program_name,
@@ -55,7 +118,12 @@ serve(async (req) => {
 
       if (insertError) {
         console.error("Error inserting registration:", insertError);
-        return new Response(JSON.stringify({ error: insertError.message }), {
+        // Provide user-friendly error message
+        let errorMessage = "We couldn't complete your registration. Please check your details and try again.";
+        if (insertError.message.includes("duplicate") || insertError.message.includes("unique")) {
+          errorMessage = "You're already registered! This email or phone number has already been used for this masterclass.";
+        }
+        return new Response(JSON.stringify({ error: errorMessage }), {
           headers: { ...cors, "Content-Type": "application/json" },
           status: 400,
         });

@@ -7,7 +7,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const getCorsHeaders = (req: Request) => {
   const origin = req.headers.get("Origin") || req.headers.get("origin");
-  const allowedOrigin = origin || "http://localhost:5173"; 
+  const allowedOrigin = origin || "http://localhost:5173";
 
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
@@ -26,7 +26,7 @@ serve(async (req: Request) => {
 
   try {
     const url = new URL(req.url);
-    const path = url.pathname.replace(/\/$/, ""); 
+    const path = url.pathname.replace(/\/$/, "");
     const segments = path.split("/").filter(Boolean);
     const routeParts = segments.slice(1);
 
@@ -37,101 +37,116 @@ serve(async (req: Request) => {
 
     // 1. List Blogs: GET /
     if (req.method === "GET" && routeParts.length === 0) {
-       const limit = Number(url.searchParams.get("limit")) || 20;
-       const category = url.searchParams.get("category");
+      const limit = Number(url.searchParams.get("limit")) || 20;
+      const category = url.searchParams.get("category");
 
-       let query = supabase.from("blogs").select("*");
-       if (category) {
-          query = query.ilike("category", category);
-       }
-       query = query.order("published_at", { ascending: false, nullsFirst: false }).limit(limit);
 
-       const { data: blogs, error } = await query;
-       if (error) throw error;
 
-       return new Response(JSON.stringify({ items: (blogs || []).map(mapSupabaseBlog) }), {
-         headers: { ...cors, "Content-Type": "application/json" },
-       });
+      // Fetch a larger batch to handle mixing of published/created dates in memory sorting
+      // We sort by created_at in DB as a rough initial order to get recent items
+      const fetchLimit = 100;
+      let query = supabase.from("blogs").select("*");
+      if (category) {
+        query = query.ilike("category", category);
+      }
+      query = query.order("created_at", { ascending: false }).limit(fetchLimit);
+
+      const { data: blogs, error } = await query;
+      if (error) throw error;
+
+      // Robust Sort: Use published_at if available, otherwise created_at
+      const sortedBlogs = (blogs || []).sort((a, b) => {
+        const dateA = new Date(a.published_at || a.created_at).getTime();
+        const dateB = new Date(b.published_at || b.created_at).getTime();
+        return dateB - dateA; // Descending
+      });
+
+      // Pagination slice if needed, though we only support simple limit for now
+      const pagedBlogs = sortedBlogs.slice(0, limit);
+
+      return new Response(JSON.stringify({ items: pagedBlogs.map(mapSupabaseBlog) }), {
+        headers: { ...cors, "Content-Type": "application/json" },
+      });
     }
 
     const slug = routeParts[0];
 
     // 2. Get Blog Details: GET /:slug
     if (req.method === "GET" && routeParts.length === 1) {
-       const { data: blog, error } = await supabase
-         .from("blogs")
-         .select("*")
-         .eq("slug", slug)
-         .maybeSingle();
+      const { data: blog, error } = await supabase
+        .from("blogs")
+        .select("*")
+        .eq("slug", slug)
+        .maybeSingle();
 
-       if (error || !blog) {
-          return new Response(JSON.stringify({ error: "Blog not found" }), { status: 404, headers: cors });
-       }
+      if (error || !blog) {
+        return new Response(JSON.stringify({ error: "Blog not found" }), { status: 404, headers: cors });
+      }
 
-       // Increment View (Fire & Forget)
-       incrementView(supabase, blog);
+      // Increment View (Fire & Forget)
+      incrementView(supabase, blog);
 
-       return new Response(JSON.stringify(mapSupabaseBlog(blog)), {
-         headers: { ...cors, "Content-Type": "application/json" },
-       });
+      return new Response(JSON.stringify(mapSupabaseBlog(blog)), {
+        headers: { ...cors, "Content-Type": "application/json" },
+      });
     }
 
     // 3. List Comments: GET /:slug/comments
     if (req.method === "GET" && routeParts.length === 2 && routeParts[1] === "comments") {
-       const { data: blog } = await supabase.from("blogs").select("id").eq("slug", slug).maybeSingle();
-       if (!blog) {
-          return new Response(JSON.stringify({ items: [] }), { headers: { ...cors, "Content-Type": "application/json" } });
-       }
+      const { data: blog } = await supabase.from("blogs").select("id").eq("slug", slug).maybeSingle();
+      if (!blog) {
+        return new Response(JSON.stringify({ items: [] }), { headers: { ...cors, "Content-Type": "application/json" } });
+      }
 
-       const { data: comments } = await supabase
-         .from("blog_comments")
-         .select("*")
-         .eq("blog_id", blog.id)
-         .eq("status", "approved")
-         .order("created_at", { ascending: false });
+      const { data: comments } = await supabase
+        .from("blog_comments")
+        .select("*")
+        .eq("blog_id", blog.id)
+        .eq("status", "approved")
+        .order("created_at", { ascending: false });
 
-       return new Response(JSON.stringify({ items: buildCommentTreeData(comments || []) }), {
-         headers: { ...cors, "Content-Type": "application/json" },
-       });
+      return new Response(JSON.stringify({ items: buildCommentTreeData(comments || []) }), {
+        headers: { ...cors, "Content-Type": "application/json" },
+      });
     }
 
     // 4. Create Comment: POST /:slug/comments
     if (req.method === "POST" && routeParts.length === 2 && routeParts[1] === "comments") {
-       const body = await req.json();
-       const { name, email, content, parentCommentId } = body;
+      const body = await req.json();
+      const { name, email, content, parentCommentId } = body;
 
-       if (!name || !email || !content) {
-          return new Response(JSON.stringify({ error: "Missing required fields" }), { status: 400, headers: cors });
-       }
+      if (!name || !email || !content) {
+        return new Response(JSON.stringify({ error: "Missing required fields" }), { status: 400, headers: cors });
+      }
 
-       const { data: blog } = await supabase.from("blogs").select("id, meta").eq("slug", slug).maybeSingle();
-       if (!blog) {
-          return new Response(JSON.stringify({ error: "Blog not found" }), { status: 404, headers: cors });
-       }
+      const { data: blog } = await supabase.from("blogs").select("id, meta").eq("slug", slug).maybeSingle();
+      if (!blog) {
+        return new Response(JSON.stringify({ error: "Blog not found" }), { status: 404, headers: cors });
+      }
 
-       const { data: comment, error } = await supabase
-         .from("blog_comments")
-         .insert([{
-            blog_id: blog.id,
-            name: name.trim(),
-            email: email.trim().toLowerCase(),
-            content: content.trim(),
-            parent_comment_id: parentCommentId || null,
-            status: "pending"
-         }])
-         .select()
-         .single();
-       
-       if (error) throw error;
+      const { data: comment, error } = await supabase
+        .from("blog_comments")
+        .insert([{
+          blog_id: blog.id,
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          content: content.trim(),
+          parent_comment_id: parentCommentId || null,
+          status: "pending"
+        }])
+        .select()
+        .single();
 
-       return new Response(JSON.stringify({
-          id: comment.id,
-          name: comment.name,
-          content: comment.content,
-          createdAt: comment.created_at,
-          parentCommentId: comment.parent_comment_id,
-          replies: []
-       }), { status: 201, headers: { ...cors, "Content-Type": "application/json" } });
+      if (error) throw error;
+
+      return new Response(JSON.stringify({
+        id: comment.id,
+        name: comment.name,
+        content: comment.content,
+        createdAt: comment.created_at,
+        parentCommentId: comment.parent_comment_id,
+        replies: []
+      }), { status: 201, headers: { ...cors, "Content-Type": "application/json" } });
     }
 
     return new Response(JSON.stringify({ error: "Not found" }), { status: 404, headers: cors });
@@ -142,11 +157,11 @@ serve(async (req: Request) => {
 
 // Helpers
 const incrementView = async (supabase: any, blog: any) => {
-   try {
-     const current = blog.meta?.views || 0;
-     const newMeta = { ...blog.meta, views: current + 1 };
-     await supabase.from("blogs").update({ meta: newMeta }).eq("id", blog.id);
-   } catch(e) {}
+  try {
+    const current = blog.meta?.views || 0;
+    const newMeta = { ...blog.meta, views: current + 1 };
+    await supabase.from("blogs").update({ meta: newMeta }).eq("id", blog.id);
+  } catch (e) { }
 };
 
 const mapSupabaseBlog = (doc: any) => ({
@@ -170,25 +185,25 @@ const mapSupabaseBlog = (doc: any) => ({
 const buildCommentTreeData = (comments: any[]) => {
   const map = new Map();
   const roots: any[] = [];
-  
+
   comments.forEach(c => {
-     const mapped = {
-        id: c.id,
-        name: c.name,
-        content: c.content,
-        createdAt: c.created_at,
-        parentCommentId: c.parent_comment_id,
-        replies: []
-     };
-     map.set(c.id, mapped);
+    const mapped = {
+      id: c.id,
+      name: c.name,
+      content: c.content,
+      createdAt: c.created_at,
+      parentCommentId: c.parent_comment_id,
+      replies: []
+    };
+    map.set(c.id, mapped);
   });
 
   map.forEach(c => {
-     if (c.parentCommentId && map.has(c.parentCommentId)) {
-        map.get(c.parentCommentId).replies.push(c);
-     } else {
-        roots.push(c);
-     }
+    if (c.parentCommentId && map.has(c.parentCommentId)) {
+      map.get(c.parentCommentId).replies.push(c);
+    } else {
+      roots.push(c);
+    }
   });
 
   roots.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
