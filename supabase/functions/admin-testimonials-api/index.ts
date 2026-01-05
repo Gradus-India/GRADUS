@@ -106,6 +106,7 @@ async function uploadToStorage(supabase: SupabaseClient, file: File, folder: str
     .from(TESTIMONIALS_BUCKET)
     .upload(fileName, file, {
       contentType: file.type,
+      cacheControl: '31536000',
       upsert: false
     });
 

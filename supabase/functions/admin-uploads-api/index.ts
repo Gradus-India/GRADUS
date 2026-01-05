@@ -131,6 +131,7 @@ serve(async (req) => {
             .from("landing_page")
             .upload(fileName, file, {
                 contentType: file.type || 'image/jpeg',
+                cacheControl: '31536000',
                 upsert: false
             });
 
