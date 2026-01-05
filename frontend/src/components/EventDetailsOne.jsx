@@ -154,25 +154,31 @@ const InstructorTab = ({ event }) => {
   );
 };
 
-const HelpTab = () => (
-  <div className='event-overview'>
-    <h2 className='event-section-title'>Need assistance?</h2>
-    <p className='text-neutral-600 mb-16'>
-      Reach our learner success team if you have questions about enrolment, prerequisites, or need a
-      custom corporate cohort.
-    </p>
-    <ul className='event-highlight-list'>
-      <li>Email: <a href='mailto:business@gradusindia.in'>business@gradusindia.in</a></li>
-      <li>Phone / WhatsApp: <a href='tel:+919999999999'>+91 99999 99999</a></li>
-      <li>
-        Support Center:{" "}
-        <Link to='/support' className='text-main-600'>
-          Open a ticket
-        </Link>
-      </li>
-    </ul>
-  </div>
-);
+const HelpTab = ({ event }) => {
+  const email = event?.meta?.support?.email || "contact@gradusindia.in";
+  const phone = event?.meta?.support?.phone || "+91 84484 29040";
+  const phoneLink = phone.replace(/[^0-9+]/g, "");
+
+  return (
+    <div className='event-overview'>
+      <h2 className='event-section-title'>Need assistance?</h2>
+      <p className='text-neutral-600 mb-16'>
+        Reach our learner success team if you have questions about enrolment, prerequisites, or need a
+        custom corporate cohort.
+      </p>
+      <ul className='event-highlight-list'>
+        <li>Email: <a href={`mailto:${email}`}>{email}</a></li>
+        <li>Phone / WhatsApp: <a href={`tel:${phoneLink}`}>{phone}</a></li>
+        <li>
+          Support Center:{" "}
+          <Link to='/support' className='text-main-600'>
+            Open a ticket
+          </Link>
+        </li>
+      </ul>
+    </div>
+  );
+};
 
 const isWithinJoinWindow = (event) => {
   const startValue = event?.schedule?.start || null;
@@ -471,7 +477,7 @@ const EventDetailsOne = ({ event, loading, error }) => {
 
   const renderTab = () => {
     if (activeTab === "instructor") return <InstructorTab event={event} />;
-    if (activeTab === "help") return <HelpTab />;
+    if (activeTab === "help") return <HelpTab event={event} />;
     return (
       <>
         <OverviewTab event={event} overviewText={overviewText} />
