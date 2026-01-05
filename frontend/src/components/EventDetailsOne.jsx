@@ -138,6 +138,7 @@ const OverviewTab = ({ event, overviewText }) => {
       ) : null}
 
       {/* 3. Outcomes / Highlights */}
+      {/* 3. Outcomes / Highlights */}
       <h2 className='event-section-title'>What you will learn in this event</h2>
       {event?.meta?.highlights?.length ? (
         <ul className='event-highlight-list'>
@@ -169,13 +170,14 @@ const OverviewTab = ({ event, overviewText }) => {
 };
 
 const InstructorTab = ({ event }) => {
-  const defaultBio =
-    "Hello, my name is Vaibhav Batra. With 6 years of market analysis and training experience, I’m here to guide you through the course details and help you build real-world financial market skills. At Gradus, we bridge the gap between academics and industry, preparing you for real market-ready opportunities.";
-  const name = event?.host?.name || "Gradus Mentor";
-  const title = event?.host?.title || "Lead Instructor";
-  const bio = event?.host?.bio || defaultBio;
+  const name = event?.host?.name;
+  const title = event?.host?.title;
+  const bio = event?.host?.bio;
   const photoUrl = event?.host?.avatarUrl;
   const hasPhoto = Boolean(photoUrl);
+  // Only render if we have at least a name
+  if (!name) return null;
+
   const layoutClass = `event-instructor-layout${hasPhoto ? "" : " event-instructor-layout--no-photo"}`;
 
   return (
@@ -560,9 +562,9 @@ const EventDetailsOne = ({ event, loading, error }) => {
             <div className='col-lg-8'>
               <div className='event-hero-card'>
                 <div className='d-flex gap-8 flex-wrap align-items-center mb-12'>
-                  <span className='badge badge--category'>{event?.category || "Event"}</span>
+                  {event?.category ? <span className='badge badge--category'>{event.category}</span> : null}
                   {event?.badge ? <span className='badge badge--accent ms-2'>{event.badge}</span> : null}
-                  {event?.eventType ? (
+                  {event?.eventType && event.eventType !== event.badge ? (
                     <span className='event-type-chip'>{event.eventType}</span>
                   ) : null}
                 </div>
