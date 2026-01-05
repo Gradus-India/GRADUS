@@ -44,6 +44,13 @@ const VideoTestimonials = () => {
   // Track all mounted video elements per testimonial id (loop clones included)
   const videoRefs = useRef({});
   const containerRef = useRef(null);
+  const [windowWidth, setWindowWidth] = useState(typeof window !== "undefined" ? window.innerWidth : 1200);
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const normalizeItems = useCallback((list) => {
     if (!Array.isArray(list)) return [];
@@ -249,6 +256,134 @@ const VideoTestimonials = () => {
     return { ...base, breakpoints: bp };
   }, [items.length]);
 
+  const useStaticGrid = items.length === 4 && windowWidth >= 1200;
+
+  const renderItem = (item, idx) => {
+    const key = String(item.id ?? idx);
+    const isActive = activeId === key;
+    const poster = item.thumbnailUrl || undefined;
+    const altText = item.name ? `${item.name}'s testimonial` : "Student testimonial";
+    const showPoster = Boolean(poster) && !isActive;
+
+    return (
+      <div className="video-testimonial-card">
+        <div className="video-testimonial-frame">
+          {showPoster ? (
+            <img
+              src={poster}
+              alt={altText}
+              loading="lazy"
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                zIndex: 0,
+                pointerEvents: "none",
+              }}
+            />
+          ) : null}
+          <video
+            ref={(node) => registerVideo(key, node)}
+            playsInline
+            preload="metadata"
+            poster={poster}
+            controls={isActive}
+            src={item.playbackUrl}
+            onEnded={stopAll}
+            onPause={(event) => {
+              if (event.target.paused && activeId === key) setActiveId(null);
+            }}
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              backgroundColor: "#0b1120",
+              opacity: isActive ? 1 : 0,
+              transition: "opacity 0.2s ease",
+              zIndex: 1,
+              pointerEvents: isActive ? "auto" : "none",
+              touchAction: "pan-x",
+            }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              padding: "24px 20px",
+              background: "linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.85) 100%)",
+              zIndex: 2,
+              pointerEvents: "none",
+              color: "#fff",
+              textAlign: "left",
+              borderBottomLeftRadius: 28,
+              borderBottomRightRadius: 28,
+            }}
+          >
+            {item.quote && (
+              <p
+                style={{
+                  fontSize: "14px",
+                  lineHeight: "1.4",
+                  marginBottom: "12px",
+                  color: "rgba(255,255,255,0.9)",
+                  display: "-webkit-box",
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden"
+                }}
+              >
+                "{item.quote}"
+              </p>
+            )}
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <span style={{ fontSize: "16px", fontWeight: 700, color: "#fff" }}>
+                {item.name}
+              </span>
+              {item.role && (
+                <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.8)" }}>
+                  {item.role}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {!isActive ? (
+            <button
+              type="button"
+              aria-label={`Play ${altText}`}
+              onClick={(event) => togglePlayback(key, event)}
+              style={playButtonStyle}
+            >
+              <span style={playIconStyle}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M9 7L16 12L9 17V7Z" fill="#fff" stroke="#fff" strokeWidth="1.1" strokeLinejoin="round" />
+                </svg>
+              </span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              aria-label={`Pause ${altText}`}
+              onClick={(event) => togglePlayback(key, event)}
+              style={floatingPauseButtonStyle}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="6" y="5" width="4" height="14" rx="1" fill="#fff" />
+                <rect x="14" y="5" width="4" height="14" rx="1" fill="#fff" />
+              </svg>
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <section className="video-testimonials-section py-64" ref={containerRef}>
       <style>{shimmerKeyframes}</style>
@@ -270,6 +405,23 @@ const VideoTestimonials = () => {
                 </div>
               ))}
             </div>
+          ) : useStaticGrid ? (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                gap: "24px",
+                padding: "0 28px",
+                maxWidth: "1400px",
+                margin: "0 auto"
+              }}
+            >
+              {items.map((item, idx) => (
+                <div key={item.id ?? idx} style={{ flex: "0 1 280px" }}>
+                  {renderItem(item, idx)}
+                </div>
+              ))}
+            </div>
           ) : (
             <Swiper
               key={items.length}
@@ -277,136 +429,13 @@ const VideoTestimonials = () => {
               className="video-reels-slider video-reels-swiper"
               onSlideChange={stopAll}
             >
-              {items.map((item, idx) => {
-                const key = String(item.id ?? idx);
-                const isActive = activeId === key;
-                const poster = item.thumbnailUrl || undefined;
-                const altText = item.name ? `${item.name}'s testimonial` : "Student testimonial";
-                const showPoster = Boolean(poster) && !isActive;
-                return (
-                  <SwiperSlide key={key} className="video-reel-slide">
-                    <div className="px-12">
-                      <div className="video-testimonial-card">
-                        <div className="video-testimonial-frame">
-                          {showPoster ? (
-                            <img
-                              src={poster}
-                              alt={altText}
-                              loading="lazy"
-                              style={{
-                                position: "absolute",
-                                inset: 0,
-                                width: "100%",
-                                height: "100%",
-                                objectFit: "cover",
-                                zIndex: 0,
-                                pointerEvents: "none",
-                              }}
-                            />
-                          ) : null}
-                          <video
-                            ref={(node) => registerVideo(key, node)}
-                            playsInline
-                            preload="metadata"
-                            poster={poster}
-                            controls={isActive}
-                            src={item.playbackUrl}
-                            onEnded={stopAll}
-                            onPause={(event) => {
-                              if (event.target.paused && activeId === key) setActiveId(null);
-                            }}
-                            style={{
-                              position: "absolute",
-                              inset: 0,
-                              width: "100%",
-                              height: "100%",
-                              objectFit: "cover",
-                              backgroundColor: "#0b1120",
-                              opacity: isActive ? 1 : 0, // keep video hidden until user plays
-                              transition: "opacity 0.2s ease",
-                              zIndex: 1,
-                              pointerEvents: isActive ? "auto" : "none",
-                              touchAction: "pan-x", // Allow horizontal swiping when video is not playing
-                            }}
-                          />
-                          {/* Text Overlay */}
-                          <div
-                            style={{
-                              position: "absolute",
-                              bottom: 0,
-                              left: 0,
-                              right: 0,
-                              padding: "24px 20px",
-                              background: "linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.85) 100%)",
-                              zIndex: 2,
-                              pointerEvents: "none",
-                              color: "#fff",
-                              textAlign: "left",
-                              borderBottomLeftRadius: 28, // Matches card radius
-                              borderBottomRightRadius: 28,
-                            }}
-                          >
-                            {item.quote && (
-                              <p
-                                style={{
-                                  fontSize: "14px",
-                                  lineHeight: "1.4",
-                                  marginBottom: "12px",
-                                  color: "rgba(255,255,255,0.9)",
-                                  display: "-webkit-box",
-                                  WebkitLineClamp: 3,
-                                  WebkitBoxOrient: "vertical",
-                                  overflow: "hidden"
-                                }}
-                              >
-                                "{item.quote}"
-                              </p>
-                            )}
-                            <div style={{ display: "flex", flexDirection: "column" }}>
-                              <span style={{ fontSize: "16px", fontWeight: 700, color: "#fff" }}>
-                                {item.name}
-                              </span>
-                              {item.role && (
-                                <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.8)" }}>
-                                  {item.role}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          {!isActive ? (
-                            <button
-                              type="button"
-                              aria-label={`Play ${altText}`}
-                              onClick={(event) => togglePlayback(key, event)}
-                              style={playButtonStyle}
-                            >
-                              <span style={playIconStyle}>
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                  <path d="M9 7L16 12L9 17V7Z" fill="#fff" stroke="#fff" strokeWidth="1.1" strokeLinejoin="round" />
-                                </svg>
-                              </span>
-                            </button>
-                          ) : (
-                            /* Floating pause button - positioned in corner, doesn't block video controls */
-                            <button
-                              type="button"
-                              aria-label={`Pause ${altText}`}
-                              onClick={(event) => togglePlayback(key, event)}
-                              style={floatingPauseButtonStyle}
-                            >
-                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <rect x="6" y="5" width="4" height="14" rx="1" fill="#fff" />
-                                <rect x="14" y="5" width="4" height="14" rx="1" fill="#fff" />
-                              </svg>
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </SwiperSlide>
-                );
-              })}
+              {items.map((item, idx) => (
+                <SwiperSlide key={item.id ?? idx} className="video-reel-slide">
+                  <div className="px-12">
+                    {renderItem(item, idx)}
+                  </div>
+                </SwiperSlide>
+              ))}
             </Swiper>
           )}
         </div>
